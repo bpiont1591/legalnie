@@ -114,8 +114,39 @@ function getCurrentUser() {
 
 function setCurrentUser(user) {
   const url = new URL(window.location.href);
-  url.searchParams.set('user', user);
+  if (user) {
+    url.searchParams.set('user', user);
+  } else {
+    url.searchParams.delete('user');
+  }
   window.history.replaceState({}, '', url);
+}
+
+function findOwnedProfile(account) {
+  if (!account) return '';
+  const db = loadDb();
+  return Object.entries(db.profiles).find(([, profile]) => profile.owner === account)?.[0] || '';
+}
+
+function ensureLoggedInProfile() {
+  const account = getSessionAccount();
+  if (!account) return;
+
+  const selected = getCurrentUser();
+  if (selected) return;
+
+  const ownedProfile = findOwnedProfile(account);
+  if (ownedProfile) {
+    setCurrentUser(ownedProfile);
+    return;
+  }
+
+  const fallbackUser = slugify(account);
+  ensureProfile(fallbackUser);
+  const db = loadDb();
+  db.profiles[fallbackUser].owner = account;
+  saveDb(db);
+  setCurrentUser(fallbackUser);
 }
 
 function ensureProfile(user) {
@@ -372,10 +403,16 @@ createProfileForm.addEventListener('submit', (event) => {
     return;
   }
 
-  db.profiles[user] = { owner: null, ownerBio: '', createdAt: new Date().toISOString(), reviews: [], reports: [] };
+  db.profiles[user] = {
+    owner: getSessionAccount(),
+    ownerBio: '',
+    createdAt: new Date().toISOString(),
+    reviews: [],
+    reports: []
+  };
   saveDb(db);
   setCurrentUser(user);
-  createProfileMessage.textContent = `Utworzono profil @${user}.`;
+  createProfileMessage.textContent = `Utworzono profil @${user} i przypisano go do Twojego konta.`;
   renderProfile();
 });
 
@@ -515,6 +552,7 @@ if (yearNode) yearNode.textContent = new Date().getFullYear();
 async function boot() {
   await refreshAuthConfig();
   await refreshSession();
+  ensureLoggedInProfile();
   renderReasonOptions(null);
   renderAuthUi();
   renderProfile();
