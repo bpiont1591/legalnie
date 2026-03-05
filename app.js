@@ -8,7 +8,6 @@ const appView = document.querySelector('#appView');
 const authMessage = document.querySelector('#authMessage');
 const logoutBtn = document.querySelector('#logoutBtn');
 const discordLoginBtn = document.querySelector('#discordLoginBtn');
-const profileDiscordLoginBtn = document.querySelector('#profileDiscordLoginBtn');
 const panelDiscordLoginBtn = document.querySelector('#panelDiscordLoginBtn');
 
 const createProfileForm = document.querySelector('#createProfileForm');
@@ -25,7 +24,6 @@ const legitCount = document.querySelector('#legitCount');
 const soldCount = document.querySelector('#soldCount');
 const scamCount = document.querySelector('#scamCount');
 
-const ownerPanelMessage = document.querySelector('#ownerPanelMessage');
 const ownerSettingsForm = document.querySelector('#ownerSettingsForm');
 const ownerSettingsMessage = document.querySelector('#ownerSettingsMessage');
 const ownerBioInput = document.querySelector('#ownerBio');
@@ -305,11 +303,6 @@ function renderAuthUi() {
   discordLoginBtn.disabled = !discordConfigured;
   discordLoginBtn.textContent = discordConfigured ? 'Zaloguj przez Discord' : 'Discord OAuth nie skonfigurowany na serwerze';
 
-  if (profileDiscordLoginBtn) {
-    profileDiscordLoginBtn.disabled = !discordConfigured;
-    profileDiscordLoginBtn.classList.toggle('hidden', isLoggedIn || !hasPublicProfileInUrl);
-    profileDiscordLoginBtn.textContent = discordConfigured ? 'Zaloguj przez Discord' : 'Discord OAuth nieaktywny';
-  }
 
   renderCreateProfileAccess();
 }
@@ -330,32 +323,16 @@ function renderOwnerPanel(profile) {
   ownerBadge.innerHTML = profile.owner
     ? `${profile.owner ? `<img class="owner-avatar" src="${escapeHtml(getSafeAvatarUrl(profile.ownerAvatar, profile.owner))}" alt="avatar" loading="lazy" referrerpolicy="no-referrer" />` : ''}<span>Właściciel: ${ownerLabel}</span>`
     : 'Właściciel: nieustawiony';
-  ownerBioDisplay.textContent = profile.ownerBio ? `Opis: ${profile.ownerBio}` : '';
-
-  if (!account) {
-    ownerPanelMessage.textContent = 'Zaloguj się przez Discord, aby zarządzać profilem.';
-    ownerSettingsForm.classList.add('hidden');
-    ownerSettingsMessage.textContent = '';
-    return;
-  }
-
-  if (!profile.owner) {
-    ownerPanelMessage.textContent = 'Ten profil nie ma właściciela.';
-    ownerSettingsForm.classList.add('hidden');
-    ownerSettingsMessage.textContent = '';
-    return;
-  }
+  ownerBioDisplay.textContent = profile.ownerBio ? profile.ownerBio : 'Ten użytkownik nie dodał jeszcze opisu.';
 
   if (isOwner) {
-    ownerPanelMessage.textContent = 'To Twój profil. Możesz zmienić nazwę linku, opis i moderować zgłoszenia.';
     ownerSettingsForm.classList.remove('hidden');
     ownerSettingsMessage.textContent = '';
     ownerBioInput.value = profile.ownerBio || '';
     profileSlugInput.value = getCurrentUser();
   } else {
-    ownerPanelMessage.textContent = `Profil należy do ${formatAccountWithDisplay(profile.owner, ownerDisplay)}.`;
     ownerSettingsForm.classList.add('hidden');
-    ownerSettingsMessage.textContent = 'Kontakt z właścicielem odbywa się poza platformą.';
+    ownerSettingsMessage.textContent = '';
   }
 }
 
@@ -528,12 +505,6 @@ discordLoginBtn.addEventListener('click', () => {
   window.location.href = '/auth/discord/start';
 });
 
-if (profileDiscordLoginBtn) {
-  profileDiscordLoginBtn.addEventListener('click', () => {
-    if (!discordConfigured) return;
-    window.location.href = '/auth/discord/start';
-  });
-}
 
 if (panelDiscordLoginBtn) {
   panelDiscordLoginBtn.addEventListener('click', () => {

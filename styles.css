@@ -369,3 +369,94 @@ code { background: rgba(255, 255, 255, 0.08); padding: 0.15rem 0.4rem; border-ra
   .profile-header-actions { width: 100%; justify-content: flex-start; }
   .topbar, .footer-inner, .topbar-actions { flex-direction: column; align-items: flex-start; }
 }
+
+/* ===== Readable redesign (desktop + mobile) ===== */
+:root {
+  --bg: #f3f6ff;
+  --bg-soft: #ffffff;
+  --text: #15233b;
+  --muted: #53627d;
+  --card: #ffffff;
+  --border: #d9e4ff;
+}
+
+body {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(100, 146, 255, 0.2), transparent 28%),
+    radial-gradient(circle at 100% 0%, rgba(147, 89, 255, 0.16), transparent 33%),
+    linear-gradient(180deg, #f5f8ff 0%, #eef3ff 100%);
+  color: var(--text);
+}
+
+.topbar, .layout, .footer-inner, .main-shell { width: min(1220px, 94vw); }
+.topbar { padding: 1.2rem 0 .9rem; }
+.brand p, .muted, label { color: var(--muted); }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 32px rgba(24, 46, 93, 0.08);
+}
+.card::after { background: none; }
+
+.login-view {
+  min-height: min(780px, calc(100vh - 170px));
+  border-color: #dce7ff;
+  box-shadow: 0 16px 44px rgba(23, 42, 86, 0.1);
+}
+
+.hero-card,
+.card-soft,
+.quick-guide {
+  background: #f8fbff;
+  border-color: #d8e5ff;
+  box-shadow: none;
+}
+
+input, select {
+  background: #fff;
+  color: var(--text);
+  border: 1px solid #ccd9f5;
+}
+
+.profile {
+  background: #ffffff;
+}
+
+.owner-badge { color: #2e4675; }
+.review { background: #f8fbff; border-color: #dce7ff; }
+.review p { color: #1f2f52; }
+
+.owner-panel h3,
+.review-form h3,
+.moderation h3,
+#adminPanel h3,
+#adminPanel h4,
+.profile h2,
+.intro-panel h3 {
+  color: #12233f;
+}
+
+#ownerBioDisplay {
+  margin-top: .55rem;
+  color: #2c4067;
+  font-size: .98rem;
+  line-height: 1.5;
+  border: 1px solid #dce7ff;
+  background: #f8fbff;
+  border-radius: 12px;
+  padding: .65rem .75rem;
+}
+
+.footer {
+  border-top: 1px solid #d7e3ff;
+  background: rgba(255,255,255,.8);
+}
+.footer a { color: #234a92; }
+
+@media (max-width: 900px) {
+  .login-view { min-height: auto; }
+  .topbar { padding-top: .9rem; }
+  .card { border-radius: 16px; }
+  .profile-header-actions { justify-content: flex-start; }
+}
