@@ -54,6 +54,7 @@ input:focus, select:focus { outline: none; border-color: rgba(116, 154, 255, 0.8
 .btn:hover { transform: translateY(-1px); }
 .btn-primary { color: #fff; background: linear-gradient(135deg, #4f83ff, #6c8eff); box-shadow: 0 8px 24px rgba(76, 124, 255, 0.33); }
 .btn-secondary { color: var(--text); background: rgba(255, 255, 255, 0.12); }
+.btn-discord { color: #fff; background: linear-gradient(135deg, #5865F2, #7289ff); box-shadow: 0 8px 24px rgba(88,101,242,.32); margin-top: .7rem; }
 .btn-report { margin-top: .55rem; padding: .42rem .7rem; background: rgba(239,84,102,.18); color: #ffd9df; }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 

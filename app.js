@@ -1,10 +1,14 @@
 const STORAGE_KEY = 'legitcheck_profiles_v2';
-const SESSION_KEY = 'legitcheck_session_account_v1';
+const SESSION_KEY = 'legitcheck_session_user_v2';
+const DISCORD_CLIENT_ID = 'WSTAW_TUTAJ_CLIENT_ID_DISCORD';
+const DISCORD_AUTH_URL = 'https://discord.com/oauth2/authorize';
+const DISCORD_API_ME = 'https://discord.com/api/users/@me';
 
 const authForm = document.querySelector('#authForm');
 const accountNameInput = document.querySelector('#accountName');
 const authMessage = document.querySelector('#authMessage');
 const logoutBtn = document.querySelector('#logoutBtn');
+const discordLoginBtn = document.querySelector('#discordLoginBtn');
 
 const createProfileForm = document.querySelector('#createProfileForm');
 const createProfileMessage = document.querySelector('#createProfileMessage');
@@ -61,16 +65,70 @@ function saveDb(db) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
 }
 
-function getSessionAccount() {
-  return slugify(localStorage.getItem(SESSION_KEY) || '');
+function getSessionUser() {
+  try {
+    return JSON.parse(localStorage.getItem(SESSION_KEY)) || null;
+  } catch {
+    return null;
+  }
 }
 
-function setSessionAccount(account) {
-  localStorage.setItem(SESSION_KEY, account);
+function getSessionAccount() {
+  return getSessionUser()?.account || '';
+}
+
+function setSessionUser(sessionUser) {
+  localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser));
 }
 
 function clearSessionAccount() {
   localStorage.removeItem(SESSION_KEY);
+}
+
+function getDiscordRedirectUri() {
+  return `${window.location.origin}${window.location.pathname}`;
+}
+
+function buildDiscordAuthUrl() {
+  const params = new URLSearchParams({
+    client_id: DISCORD_CLIENT_ID,
+    redirect_uri: getDiscordRedirectUri(),
+    response_type: 'token',
+    scope: 'identify'
+  });
+  return `${DISCORD_AUTH_URL}?${params.toString()}`;
+}
+
+async function tryDiscordLoginFromHash() {
+  if (!window.location.hash.includes('access_token=')) return;
+
+  const hash = new URLSearchParams(window.location.hash.slice(1));
+  const accessToken = hash.get('access_token');
+  if (!accessToken) return;
+
+  try {
+    const response = await fetch(DISCORD_API_ME, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    if (!response.ok) throw new Error('discord_profile_failed');
+
+    const profile = await response.json();
+    const account = slugify(`dc_${profile.id}`);
+    const display = `${profile.username}${profile.discriminator && profile.discriminator !== '0' ? `#${profile.discriminator}` : ''}`;
+
+    setSessionUser({
+      account,
+      provider: 'discord',
+      display,
+      discordId: profile.id,
+      avatar: profile.avatar || null
+    });
+    authMessage.textContent = `Zalogowano przez Discord jako ${display}`;
+  } catch {
+    authMessage.textContent = 'Nie udało się zalogować przez Discord. Sprawdź konfigurację OAuth.';
+  }
+
+  window.history.replaceState({}, '', window.location.pathname + window.location.search);
 }
 
 function getCurrentUser() {
@@ -134,13 +192,20 @@ function renderTrustPill(stats) {
 }
 
 function renderAuthUi() {
-  const account = getSessionAccount();
+  const sessionUser = getSessionUser();
+  const account = sessionUser?.account;
   if (account) {
-    authMessage.textContent = `Zalogowano jako @${account}`;
+    const providerLabel = sessionUser.provider === 'discord' ? `Discord: ${sessionUser.display}` : `@${account}`;
+    authMessage.textContent = `Zalogowano jako ${providerLabel}`;
     logoutBtn.classList.remove('hidden');
   } else {
     authMessage.textContent = 'Nie jesteś zalogowany.';
     logoutBtn.classList.add('hidden');
+  }
+
+  if (DISCORD_CLIENT_ID === 'WSTAW_TUTAJ_CLIENT_ID_DISCORD') {
+    discordLoginBtn.disabled = true;
+    discordLoginBtn.textContent = 'Ustaw CLIENT_ID Discorda w app.js';
   }
 }
 
@@ -293,10 +358,22 @@ authForm.addEventListener('submit', (event) => {
     authMessage.textContent = 'Nick konta musi mieć min. 3 znaki.';
     return;
   }
-  setSessionAccount(account);
+  setSessionUser({
+    account,
+    provider: 'local',
+    display: account
+  });
   authMessage.textContent = `Zalogowano jako @${account}`;
   renderAuthUi();
   renderProfile();
+});
+
+discordLoginBtn.addEventListener('click', () => {
+  if (DISCORD_CLIENT_ID === 'WSTAW_TUTAJ_CLIENT_ID_DISCORD') {
+    authMessage.textContent = 'Najpierw ustaw DISCORD_CLIENT_ID w app.js i redirect URI w panelu Discord Developer.';
+    return;
+  }
+  window.location.href = buildDiscordAuthUrl();
 });
 
 logoutBtn.addEventListener('click', () => {
@@ -461,6 +538,11 @@ copyProfileLink.addEventListener('click', async () => {
 
 if (yearNode) yearNode.textContent = new Date().getFullYear();
 
-renderReasonOptions(null);
-renderAuthUi();
-renderProfile();
+async function boot() {
+  await tryDiscordLoginFromHash();
+  renderReasonOptions(null);
+  renderAuthUi();
+  renderProfile();
+}
+
+boot();
