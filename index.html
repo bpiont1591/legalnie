@@ -51,14 +51,14 @@
             pattern="[a-zA-Z0-9_-]{3,30}"
             required
           />
-          <button type="submit" class="btn btn-primary">Przejdź do profilu</button>
+          <button type="submit" class="btn btn-primary">Utwórz profil</button>
         </form>
         <p id="createProfileMessage" class="feedback"></p>
 
         <div class="intro-points">
-          <p><strong>✔ Transparentność:</strong> widoczne wszystkie opinie.</p>
-          <p><strong>✔ Wiarygodność:</strong> licznik reputacji i poziom zaufania.</p>
-          <p><strong>✔ Udostępnianie:</strong> każdy profil działa po własnym linku.</p>
+          <p><strong>✔ Unikalne nazwy:</strong> jedna nazwa = jeden profil.</p>
+          <p><strong>✔ Ograniczenie spamu:</strong> 1 opinia na 24h na profil z urządzenia.</p>
+          <p><strong>✔ Wiarygodność:</strong> opinie podpisywane przez opiniującego.</p>
         </div>
       </section>
 
@@ -72,22 +72,16 @@
         </div>
 
         <div class="stats-grid">
-          <article class="stat legit">
-            <h3>Legit ✅</h3>
-            <p id="legitCount">0</p>
-          </article>
-          <article class="stat sold">
-            <h3>Sprzedał 💼</h3>
-            <p id="soldCount">0</p>
-          </article>
-          <article class="stat scam">
-            <h3>Oszukał ❌</h3>
-            <p id="scamCount">0</p>
-          </article>
+          <article class="stat legit"><h3>Legit ✅</h3><p id="legitCount">0</p></article>
+          <article class="stat sold"><h3>Sprzedał 💼</h3><p id="soldCount">0</p></article>
+          <article class="stat scam"><h3>Oszukał ❌</h3><p id="scamCount">0</p></article>
         </div>
 
         <form id="reviewForm" class="stack review-form">
           <h3>Wystaw opinię</h3>
+
+          <label for="reviewerName">Twój nick opiniującego</label>
+          <input id="reviewerName" name="reviewerName" maxlength="30" placeholder="np. kupujacy_krk" required />
 
           <div class="rating-grid" role="radiogroup" aria-label="Typ opinii">
             <label class="rating-card rating-legit">
@@ -107,10 +101,11 @@
             </label>
           </div>
 
-          <label for="reason">Powód opinii (wybierz z katalogu)</label>
+          <label for="reason">Powód opinii (katalog)</label>
           <select id="reason" name="reason" required></select>
 
-          <button type="submit" class="btn btn-primary">Dodaj opinię</button>
+          <p id="reviewLimitMessage" class="feedback warning"></p>
+          <button type="submit" id="submitReview" class="btn btn-primary">Dodaj opinię</button>
         </form>
 
         <div>
@@ -121,18 +116,14 @@
 
       <section id="emptyState" class="card panel empty-state">
         <h2>Brak aktywnego profilu</h2>
-        <p class="muted">Utwórz profil lub otwórz link w formacie <code>?user=nazwa</code>.</p>
+        <p class="muted">Utwórz profil albo otwórz link w formacie <code>?user=nazwa</code>.</p>
       </section>
     </main>
 
     <footer class="footer">
       <div class="footer-inner">
         <p>© <span id="year"></span> LegitCheck. Wszystkie prawa zastrzeżone.</p>
-        <nav>
-          <a href="#">Regulamin</a>
-          <a href="#">Polityka prywatności</a>
-          <a href="#">Kontakt</a>
-        </nav>
+        <nav><a href="#">Regulamin</a><a href="#">Polityka prywatności</a><a href="#">Kontakt</a></nav>
       </div>
     </footer>
 

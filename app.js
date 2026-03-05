@@ -1,4 +1,7 @@
 const STORAGE_KEY = 'legitcheck_profiles_v1';
+const DEVICE_ID_KEY = 'legitcheck_device_id_v1';
+const REVIEWER_NAME_KEY = 'legitcheck_reviewer_name_v1';
+const REVIEW_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 const createProfileForm = document.querySelector('#createProfileForm');
 const createProfileMessage = document.querySelector('#createProfileMessage');
@@ -13,6 +16,9 @@ const reviewForm = document.querySelector('#reviewForm');
 const reviewsList = document.querySelector('#reviewsList');
 const copyProfileLink = document.querySelector('#copyProfileLink');
 const reasonSelect = document.querySelector('#reason');
+const reviewerNameInput = document.querySelector('#reviewerName');
+const reviewLimitMessage = document.querySelector('#reviewLimitMessage');
+const submitReviewButton = document.querySelector('#submitReview');
 const yearNode = document.querySelector('#year');
 
 const ratingMeta = {
@@ -22,24 +28,9 @@ const ratingMeta = {
 };
 
 const reasonCatalog = {
-  legit: [
-    'Szybka wysyłka',
-    'Towar zgodny z opisem',
-    'Dobry kontakt',
-    'Polecam sprzedawcę'
-  ],
-  sold: [
-    'Sprzedane bez problemu',
-    'Transakcja zakończona pomyślnie',
-    'Płatność i odbiór poprawne',
-    'Finalizacja zgodnie z ustaleniami'
-  ],
-  scam: [
-    'Brak wysyłki po płatności',
-    'Towar niezgodny z opisem',
-    'Brak kontaktu po transakcji',
-    'Podejrzenie oszustwa'
-  ]
+  legit: ['Szybka wysyłka', 'Towar zgodny z opisem', 'Dobry kontakt', 'Polecam sprzedawcę'],
+  sold: ['Sprzedane bez problemu', 'Transakcja zakończona pomyślnie', 'Płatność i odbiór poprawne', 'Finalizacja zgodnie z ustaleniami'],
+  scam: ['Brak wysyłki po płatności', 'Towar niezgodny z opisem', 'Brak kontaktu po transakcji', 'Podejrzenie oszustwa']
 };
 
 function slugify(username) {
@@ -69,11 +60,60 @@ function setCurrentUser(user) {
   window.history.replaceState({}, '', url);
 }
 
+function ensureDeviceId() {
+  let id = localStorage.getItem(DEVICE_ID_KEY);
+  if (!id) {
+    id = crypto.randomUUID ? crypto.randomUUID() : `dev-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    localStorage.setItem(DEVICE_ID_KEY, id);
+  }
+  return id;
+}
+
 function ensureProfile(user) {
   const profiles = loadProfiles();
   if (!profiles[user]) {
-    profiles[user] = { reviews: [] };
+    profiles[user] = { owner: user, createdAt: new Date().toISOString(), reviews: [] };
     saveProfiles(profiles);
+  }
+}
+
+function formatRemaining(ms) {
+  const totalMin = Math.ceil(ms / 60000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return `${h}h ${m}m`;
+}
+
+function getLastReviewByDevice(profile, deviceId) {
+  const sameDeviceReviews = profile.reviews.filter((review) => review.reviewerDeviceId === deviceId);
+  if (!sameDeviceReviews.length) return null;
+  return sameDeviceReviews.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+}
+
+function updateReviewGuardState() {
+  const user = getCurrentUser();
+  if (!user) return;
+
+  const profiles = loadProfiles();
+  const profile = profiles[user];
+  const deviceId = ensureDeviceId();
+  const lastReview = getLastReviewByDevice(profile, deviceId);
+
+  if (!lastReview) {
+    submitReviewButton.disabled = false;
+    reviewLimitMessage.textContent = 'Możesz teraz wystawić opinię dla tego profilu.';
+    return;
+  }
+
+  const elapsed = Date.now() - new Date(lastReview.createdAt).getTime();
+  const remaining = REVIEW_COOLDOWN_MS - elapsed;
+
+  if (remaining > 0) {
+    submitReviewButton.disabled = true;
+    reviewLimitMessage.textContent = `Limit aktywny: kolejna opinia dla tego profilu za ${formatRemaining(remaining)}.`;
+  } else {
+    submitReviewButton.disabled = false;
+    reviewLimitMessage.textContent = 'Limit minął — możesz ponownie wystawić opinię.';
   }
 }
 
@@ -114,10 +154,7 @@ function getSelectedRating() {
 
 function renderReasonOptions(rating) {
   const options = reasonCatalog[rating] || [];
-  reasonSelect.innerHTML = [
-    '<option value="" selected disabled>Wybierz powód...</option>',
-    ...options.map((reason) => `<option value="${reason}">${reason}</option>`)
-  ].join('');
+  reasonSelect.innerHTML = ['<option value="" selected disabled>Wybierz powód...</option>', ...options.map((reason) => `<option value="${reason}">${reason}</option>`)].join('');
 }
 
 function renderReviews(reviews) {
@@ -132,6 +169,7 @@ function renderReviews(reviews) {
     .map((review) => {
       const date = new Date(review.createdAt).toLocaleDateString('pl-PL');
       const reason = review.reason?.trim() ? review.reason : 'Brak powodu.';
+      const reviewerName = review.reviewerName || 'Anonim';
       return `
         <li class="review">
           <div class="review-head">
@@ -139,6 +177,7 @@ function renderReviews(reviews) {
             <span>${date}</span>
           </div>
           <p>${reason}</p>
+          <small class="review-author">Opinia od: @${reviewerName}</small>
         </li>`;
     })
     .join('');
@@ -164,6 +203,7 @@ function renderProfile() {
   scamCount.textContent = stats.scam;
   renderTrustPill(stats);
   renderReviews(profile.reviews);
+  updateReviewGuardState();
 
   profileSection.classList.remove('hidden');
   emptyState.classList.add('hidden');
@@ -175,14 +215,23 @@ createProfileForm.addEventListener('submit', (event) => {
   const rawName = new FormData(createProfileForm).get('username');
   const user = slugify(String(rawName));
 
-  if (!user) {
-    createProfileMessage.textContent = 'Podaj poprawną nazwę (min. 3 znaki, bez polskich znaków).';
+  if (!user || user.length < 3) {
+    createProfileMessage.textContent = 'Podaj poprawną nazwę (minimum 3 znaki: litery, cyfry, _ lub -).';
     return;
   }
 
-  ensureProfile(user);
+  const profiles = loadProfiles();
+  if (profiles[user]) {
+    createProfileMessage.textContent = `Ta nazwa już istnieje. Otwieram profil @${user}.`;
+    setCurrentUser(user);
+    renderProfile();
+    return;
+  }
+
+  profiles[user] = { owner: user, createdAt: new Date().toISOString(), reviews: [] };
+  saveProfiles(profiles);
   setCurrentUser(user);
-  createProfileMessage.textContent = `Gotowe! Twój profil to: ${window.location.href}`;
+  createProfileMessage.textContent = `Profil @${user} utworzony. Link: ${window.location.href}`;
   renderProfile();
 });
 
@@ -200,18 +249,40 @@ reviewForm.addEventListener('submit', (event) => {
   const formData = new FormData(reviewForm);
   const rating = String(formData.get('rating'));
   const reason = String(formData.get('reason') || '').trim();
+  const reviewerName = slugify(String(formData.get('reviewerName') || ''));
 
-  if (!rating || !reason) return;
+  if (!rating || !reason || !reviewerName || reviewerName.length < 3) {
+    reviewLimitMessage.textContent = 'Uzupełnij poprawnie nick opiniującego, ocenę i powód.';
+    return;
+  }
 
   const profiles = loadProfiles();
-  profiles[user].reviews.push({
+  const profile = profiles[user];
+  const deviceId = ensureDeviceId();
+  const lastReview = getLastReviewByDevice(profile, deviceId);
+
+  if (lastReview) {
+    const elapsed = Date.now() - new Date(lastReview.createdAt).getTime();
+    const remaining = REVIEW_COOLDOWN_MS - elapsed;
+    if (remaining > 0) {
+      submitReviewButton.disabled = true;
+      reviewLimitMessage.textContent = `Możesz dodać kolejną opinię za ${formatRemaining(remaining)}.`;
+      return;
+    }
+  }
+
+  profile.reviews.push({
     rating,
     reason,
+    reviewerName,
+    reviewerDeviceId: deviceId,
     createdAt: new Date().toISOString()
   });
 
   saveProfiles(profiles);
+  localStorage.setItem(REVIEWER_NAME_KEY, reviewerName);
   reviewForm.reset();
+  reviewerNameInput.value = reviewerName;
   renderReasonOptions(null);
   renderProfile();
 });
@@ -227,6 +298,10 @@ copyProfileLink.addEventListener('click', async () => {
     copyProfileLink.textContent = 'Nie udało się skopiować';
   }
 });
+
+ensureDeviceId();
+const savedReviewerName = localStorage.getItem(REVIEWER_NAME_KEY);
+if (savedReviewerName) reviewerNameInput.value = savedReviewerName;
 
 renderReasonOptions(null);
 renderProfile();
