@@ -1,5 +1,6 @@
 let sessionUser = null;
 let discordConfigured = true;
+const ADMIN_ACCOUNT = 'dc_1418289596457812088';
 
 const loginView = document.querySelector('#loginView');
 const appView = document.querySelector('#appView');
@@ -36,6 +37,9 @@ const reviewLimitMessage = document.querySelector('#reviewLimitMessage');
 const submitReviewButton = document.querySelector('#submitReview');
 const reviewsList = document.querySelector('#reviewsList');
 const reportsList = document.querySelector('#reportsList');
+const adminPanel = document.querySelector('#adminPanel');
+const adminPanelMessage = document.querySelector('#adminPanelMessage');
+const adminReportsList = document.querySelector('#adminReportsList');
 
 const copyProfileLink = document.querySelector('#copyProfileLink');
 const yearNode = document.querySelector('#year');
@@ -43,6 +47,7 @@ const yearNode = document.querySelector('#year');
 let currentProfile = null;
 let ownedProfileSlug = null;
 let profileResolved = false;
+let adminReports = [];
 
 const ratingMeta = {
   legit: { label: 'Legit ✅' },
@@ -86,6 +91,10 @@ async function api(path, options = {}) {
 
 function getSessionAccount() {
   return sessionUser?.account || '';
+}
+
+function isAdminUser() {
+  return getSessionAccount() === ADMIN_ACCOUNT;
 }
 
 function getCurrentUser() {
@@ -156,6 +165,15 @@ async function refreshCurrentProfile() {
   const result = await api(`/api/profile?user=${encodeURIComponent(user)}`, { method: 'GET' });
   currentProfile = result.data.profile || null;
   profileResolved = true;
+}
+
+async function refreshAdminReports() {
+  if (!isAdminUser()) {
+    adminReports = [];
+    return;
+  }
+  const result = await api('/api/admin/reports', { method: 'GET' });
+  adminReports = result.ok ? (result.data.reports || []) : [];
 }
 
 
@@ -381,6 +399,39 @@ function renderReports(profile) {
     .join('');
 }
 
+function renderAdminPanel() {
+  if (!adminPanel || !adminReportsList) return;
+
+  if (!isAdminUser()) {
+    adminPanel.classList.add('hidden');
+    return;
+  }
+
+  adminPanel.classList.remove('hidden');
+  adminPanelMessage.textContent = `Otwartych zgłoszeń globalnie: ${adminReports.length}`;
+
+  if (!adminReports.length) {
+    adminReportsList.innerHTML = '<li class="review">Brak otwartych zgłoszeń w systemie.</li>';
+    return;
+  }
+
+  adminReportsList.innerHTML = adminReports
+    .map((report) => `
+      <li class="review admin-review">
+        <div class="review-head"><span>Profil: @${escapeHtml(report.profileSlug)}</span><span>${new Date(report.createdAt).toLocaleDateString('pl-PL')}</span></div>
+        <p><strong>Powód:</strong> ${escapeHtml(report.reason || '-')}</p>
+        <p><strong>Autor opinii:</strong> ${escapeHtml(report.reviewerDisplay || report.reviewerAccount || '-')} (${escapeHtml(report.reviewerAccount || '-')})</p>
+        <p><strong>Zgłaszający:</strong> @${escapeHtml(report.reportedBy || '-')}</p>
+        <div class="admin-actions">
+          <button class="btn btn-secondary" data-admin-action="keep" data-admin-profile="${escapeHtml(report.profileSlug)}" data-admin-report="${escapeHtml(report.reportId)}">Zostaw i zamknij</button>
+          <button class="btn btn-report" data-admin-action="delete_review" data-admin-profile="${escapeHtml(report.profileSlug)}" data-admin-report="${escapeHtml(report.reportId)}">Usuń opinię</button>
+          <button class="btn btn-secondary" data-admin-action="dismiss" data-admin-profile="${escapeHtml(report.profileSlug)}" data-admin-report="${escapeHtml(report.reportId)}">Pomiń zgłoszenie</button>
+          ${report.reviewerAccount ? `<button class="btn ${report.blocked ? 'btn-secondary' : 'btn-report'}" data-admin-block-account="${escapeHtml(report.reviewerAccount)}" data-admin-blocked="${report.blocked ? 'false' : 'true'}">${report.blocked ? 'Odblokuj autora' : 'Zablokuj autora'}</button>` : ''}
+        </div>
+      </li>`)
+    .join('');
+}
+
 function renderProfile() {
   const user = getCurrentUser();
 
@@ -409,6 +460,7 @@ function renderProfile() {
   renderReviewPermission(currentProfile);
   renderReviews(currentProfile, user);
   renderReports(currentProfile);
+  renderAdminPanel();
 
   profileSection.classList.remove('hidden');
   emptyState.classList.add('hidden');
@@ -417,6 +469,7 @@ function renderProfile() {
 
 async function syncAndRender() {
   await refreshCurrentProfile();
+  await refreshAdminReports();
   renderProfile();
 }
 
@@ -439,6 +492,7 @@ logoutBtn.addEventListener('click', async () => {
   await api('/auth/logout', { method: 'POST' });
   await refreshSession();
   ownedProfileSlug = null;
+  adminReports = [];
   renderAuthUi();
   renderProfile();
 });
@@ -575,6 +629,40 @@ reportsList.addEventListener('click', async (event) => {
   await syncAndRender();
 });
 
+if (adminReportsList) {
+  adminReportsList.addEventListener('click', async (event) => {
+    const actionBtn = event.target.closest('[data-admin-action]');
+    if (actionBtn) {
+      const result = await api('/api/admin/report/action', {
+        method: 'POST',
+        body: JSON.stringify({
+          profileSlug: actionBtn.dataset.adminProfile,
+          reportId: actionBtn.dataset.adminReport,
+          action: actionBtn.dataset.adminAction
+        })
+      });
+      if (!result.ok) {
+        adminPanelMessage.textContent = 'Nie udało się wykonać akcji administracyjnej.';
+        return;
+      }
+      await syncAndRender();
+      return;
+    }
+
+    const blockBtn = event.target.closest('[data-admin-block-account]');
+    if (!blockBtn) return;
+    const result = await api('/api/admin/block', {
+      method: 'POST',
+      body: JSON.stringify({ account: blockBtn.dataset.adminBlockAccount, blocked: blockBtn.dataset.adminBlocked === 'true' })
+    });
+    if (!result.ok) {
+      adminPanelMessage.textContent = 'Nie udało się zmienić statusu blokady.';
+      return;
+    }
+    await syncAndRender();
+  });
+}
+
 copyProfileLink.addEventListener('click', async () => {
   try {
     await navigator.clipboard.writeText(window.location.href);
@@ -596,6 +684,7 @@ async function boot() {
     await refreshOwnedProfileSlug();
     await ensureLoggedInProfile();
     await refreshCurrentProfile();
+    await refreshAdminReports();
     renderReasonOptions(null);
     renderAuthUi();
     renderProfile();

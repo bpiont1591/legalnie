@@ -9,8 +9,9 @@ const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || '';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change-me-please';
 const BASE_URL = process.env.BASE_URL || '';
 const DB_FILE = path.join(process.cwd(), 'data', 'profiles-db.json');
+const ADMIN_DISCORD_ID = '1418289596457812088';
 
-let DB = { profiles: {} };
+let DB = { profiles: {}, blockedAccounts: {} };
 
 
 const RATE_LIMITS = new Map();
@@ -51,13 +52,53 @@ function isValidSlug(value) {
   return /^[a-z0-9_-]{3,30}$/.test(value);
 }
 
+function isAdmin(user) {
+  return Boolean(user?.account === `dc_${ADMIN_DISCORD_ID}`);
+}
+
+function isBlockedAccount(account) {
+  return Boolean(DB.blockedAccounts?.[account]);
+}
+
+function requireNotBlocked(user, res) {
+  if (isBlockedAccount(user.account)) {
+    json(res, 403, { error: 'blocked_user' });
+    return false;
+  }
+  return true;
+}
+
+function collectOpenReports() {
+  const out = [];
+  for (const [slug, profile] of Object.entries(DB.profiles || {})) {
+    for (const report of profile.reports || []) {
+      if (report.status !== 'open') continue;
+      const review = (profile.reviews || []).find((r) => r.id === report.reviewId);
+      out.push({
+        profileSlug: slug,
+        reportId: report.id,
+        reviewId: report.reviewId,
+        reportedBy: report.reportedBy,
+        reviewerAccount: review?.reviewerAccount || '',
+        reviewerDisplay: review?.reviewerDisplay || '',
+        reason: review?.reason || '',
+        rating: review?.rating || '',
+        createdAt: report.createdAt,
+        blocked: review?.reviewerAccount ? isBlockedAccount(review.reviewerAccount) : false
+      });
+    }
+  }
+  return out.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+}
+
 async function loadDb() {
   try {
     const raw = await readFile(DB_FILE, 'utf8');
     DB = JSON.parse(raw);
-    if (!DB?.profiles) DB = { profiles: {} };
+    if (!DB?.profiles) DB.profiles = {};
+    if (!DB?.blockedAccounts) DB.blockedAccounts = {};
   } catch {
-    DB = { profiles: {} };
+    DB = { profiles: {}, blockedAccounts: {} };
   }
 }
 
@@ -279,6 +320,7 @@ async function handleApi(req, res, url) {
   if (url.pathname === '/api/profile/create' && req.method === 'POST') {
     const user = requireSession(req, res);
     if (!user) return;
+    if (!requireNotBlocked(user, res)) return;
     if (isRateLimited(req, user, 'profile_create', 6)) return json(res, 429, { error: 'rate_limited' });
     const body = await readJsonBody(req);
     const slug = slugify(body.slug);
@@ -303,6 +345,7 @@ async function handleApi(req, res, url) {
   if (url.pathname === '/api/profile/claim' && req.method === 'POST') {
     const user = requireSession(req, res);
     if (!user) return;
+    if (!requireNotBlocked(user, res)) return;
     if (isRateLimited(req, user, 'profile_claim', 10)) return json(res, 429, { error: 'rate_limited' });
     const body = await readJsonBody(req);
     const slug = slugify(body.user);
@@ -320,6 +363,7 @@ async function handleApi(req, res, url) {
   if (url.pathname === '/api/profile/settings' && req.method === 'POST') {
     const user = requireSession(req, res);
     if (!user) return;
+    if (!requireNotBlocked(user, res)) return;
     if (isRateLimited(req, user, 'profile_settings', 20)) return json(res, 429, { error: 'rate_limited' });
     const body = await readJsonBody(req);
     const currentSlug = slugify(body.user);
@@ -345,6 +389,7 @@ async function handleApi(req, res, url) {
   if (url.pathname === '/api/review' && req.method === 'POST') {
     const user = requireSession(req, res);
     if (!user) return;
+    if (!requireNotBlocked(user, res)) return;
     if (isRateLimited(req, user, 'review_write', 12)) return json(res, 429, { error: 'rate_limited' });
     const body = await readJsonBody(req);
     const slug = slugify(body.user);
@@ -380,6 +425,7 @@ async function handleApi(req, res, url) {
   if (url.pathname === '/api/report' && req.method === 'POST') {
     const user = requireSession(req, res);
     if (!user) return;
+    if (!requireNotBlocked(user, res)) return;
     if (isRateLimited(req, user, 'report_write', 12)) return json(res, 429, { error: 'rate_limited' });
     const body = await readJsonBody(req);
     const slug = slugify(body.user);
@@ -421,6 +467,63 @@ async function handleApi(req, res, url) {
     }
 
     return json(res, 200, { ok: true, profile: sanitizeProfile(profile) });
+  }
+
+  if (url.pathname === '/api/admin/reports' && req.method === 'GET') {
+    const user = requireSession(req, res);
+    if (!user) return;
+    if (!isAdmin(user)) return json(res, 403, { error: 'forbidden' });
+    return json(res, 200, { reports: collectOpenReports() });
+  }
+
+  if (url.pathname === '/api/admin/report/action' && req.method === 'POST') {
+    const user = requireSession(req, res);
+    if (!user) return;
+    if (!isAdmin(user)) return json(res, 403, { error: 'forbidden' });
+    if (isRateLimited(req, user, 'admin_report_action', 60)) return json(res, 429, { error: 'rate_limited' });
+
+    const body = await readJsonBody(req);
+    const profileSlug = slugify(body.profileSlug);
+    const reportId = String(body.reportId || '');
+    const action = String(body.action || '');
+    if (!isValidSlug(profileSlug) || !reportId || !['keep', 'delete_review', 'dismiss'].includes(action)) {
+      return json(res, 400, { error: 'invalid_input' });
+    }
+
+    const profile = DB.profiles[profileSlug];
+    if (!profile) return json(res, 404, { error: 'profile_not_found' });
+    const report = (profile.reports || []).find((r) => r.id === reportId);
+    if (!report) return json(res, 404, { error: 'report_not_found' });
+
+    if (action === 'delete_review') {
+      profile.reviews = (profile.reviews || []).filter((r) => r.id !== report.reviewId);
+      profile.reports = (profile.reports || []).filter((r) => r.reviewId !== report.reviewId);
+    } else if (action === 'dismiss') {
+      profile.reports = (profile.reports || []).filter((r) => r.id !== reportId);
+    } else {
+      report.status = 'resolved';
+      report.resolvedAt = new Date().toISOString();
+    }
+
+    await persistDb();
+    return json(res, 200, { ok: true, reports: collectOpenReports() });
+  }
+
+  if (url.pathname === '/api/admin/block' && req.method === 'POST') {
+    const user = requireSession(req, res);
+    if (!user) return;
+    if (!isAdmin(user)) return json(res, 403, { error: 'forbidden' });
+    if (isRateLimited(req, user, 'admin_block_action', 60)) return json(res, 429, { error: 'rate_limited' });
+
+    const body = await readJsonBody(req);
+    const account = String(body.account || '');
+    const blocked = Boolean(body.blocked);
+    if (!/^dc_[0-9]+$/.test(account)) return json(res, 400, { error: 'invalid_input' });
+    if (!DB.blockedAccounts) DB.blockedAccounts = {};
+    if (blocked) DB.blockedAccounts[account] = { blockedAt: new Date().toISOString(), blockedBy: user.account };
+    else delete DB.blockedAccounts[account];
+    await persistDb();
+    return json(res, 200, { ok: true, blockedAccounts: Object.keys(DB.blockedAccounts) });
   }
 
   return false;

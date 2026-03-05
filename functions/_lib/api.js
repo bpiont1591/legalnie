@@ -1,7 +1,10 @@
 import { readSession } from './auth.js';
 
-const MEM_DB = globalThis.__legitcheckDb || (globalThis.__legitcheckDb = { profiles: {} });
+const ADMIN_DISCORD_ID = '1418289596457812088';
+
+const MEM_DB = globalThis.__legitcheckDb || (globalThis.__legitcheckDb = { profiles: {}, blockedAccounts: {} });
 const RATE_LIMITS = globalThis.__legitcheckRateLimits || (globalThis.__legitcheckRateLimits = new Map());
+if (!MEM_DB.blockedAccounts) MEM_DB.blockedAccounts = {};
 
 const json = (data, init = {}) =>
   new Response(JSON.stringify(data), {
@@ -19,6 +22,14 @@ function slugify(text) {
 
 function isValidSlug(value) {
   return /^[a-z0-9_-]{3,30}$/.test(value);
+}
+
+function isAdmin(user) {
+  return Boolean(user?.account === `dc_${ADMIN_DISCORD_ID}`);
+}
+
+function isBlockedMem(account) {
+  return Boolean(MEM_DB.blockedAccounts?.[account]);
 }
 
 async function bodyJson(request) {
@@ -89,6 +100,11 @@ async function ensureSchema(env) {
       status TEXT NOT NULL,
       created_at TEXT NOT NULL,
       resolved_at TEXT
+    )`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS blocked_accounts (
+      account TEXT PRIMARY KEY,
+      blocked_at TEXT NOT NULL,
+      blocked_by TEXT NOT NULL
     )`)
   ]);
 
@@ -112,7 +128,8 @@ async function ensureSchema(env) {
     'CREATE INDEX IF NOT EXISTS idx_reviews_profile_slug ON reviews(profile_slug)',
     'CREATE INDEX IF NOT EXISTS idx_reviews_reviewer_account ON reviews(reviewer_account)',
     'CREATE INDEX IF NOT EXISTS idx_reports_profile_slug ON reports(profile_slug)',
-    'CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status)'
+    'CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status)',
+    'CREATE INDEX IF NOT EXISTS idx_blocked_accounts_blocked_by ON blocked_accounts(blocked_by)'
   ];
   for (const stmt of indexStatements) {
     await env.DB.prepare(stmt).run();
@@ -213,6 +230,83 @@ async function requireSession(request, env) {
   return user?.account ? user : null;
 }
 
+async function isBlockedAccount(env, account) {
+  if (!account) return false;
+  if (!env.DB) return isBlockedMem(account);
+  const row = await env.DB.prepare('SELECT account FROM blocked_accounts WHERE account = ? LIMIT 1').bind(account).first();
+  return Boolean(row?.account);
+}
+
+async function setBlockedAccount(env, account, blocked, adminAccount) {
+  if (!env.DB) {
+    MEM_DB.blockedAccounts = MEM_DB.blockedAccounts || {};
+    if (blocked) MEM_DB.blockedAccounts[account] = { blockedAt: new Date().toISOString(), blockedBy: adminAccount };
+    else delete MEM_DB.blockedAccounts[account];
+    return;
+  }
+
+  if (blocked) {
+    await env.DB
+      .prepare('INSERT OR REPLACE INTO blocked_accounts (account, blocked_at, blocked_by) VALUES (?, ?, ?)')
+      .bind(account, new Date().toISOString(), adminAccount)
+      .run();
+  } else {
+    await env.DB.prepare('DELETE FROM blocked_accounts WHERE account = ?').bind(account).run();
+  }
+}
+
+async function collectOpenReports(env) {
+  if (!env.DB) {
+    const items = [];
+    for (const [slug, profile] of Object.entries(MEM_DB.profiles || {})) {
+      for (const report of profile.reports || []) {
+        if (report.status !== 'open') continue;
+        const review = (profile.reviews || []).find((r) => r.id === report.reviewId);
+        const reviewerAccount = review?.reviewerAccount || '';
+        items.push({
+          profileSlug: slug,
+          reportId: report.id,
+          reviewId: report.reviewId,
+          reportedBy: report.reportedBy,
+          reviewerAccount,
+          reviewerDisplay: review?.reviewerDisplay || '',
+          reason: review?.reason || '',
+          rating: review?.rating || '',
+          createdAt: report.createdAt,
+          blocked: reviewerAccount ? isBlockedMem(reviewerAccount) : false
+        });
+      }
+    }
+    return items.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  }
+
+  const reports = (
+    await env.DB
+      .prepare(`SELECT rp.id AS report_id, rp.profile_slug, rp.review_id, rp.reported_by, rp.created_at,
+                       rv.reviewer_account, rv.reviewer_display, rv.reason, rv.rating,
+                       ba.account AS blocked_account
+                FROM reports rp
+                LEFT JOIN reviews rv ON rv.id = rp.review_id
+                LEFT JOIN blocked_accounts ba ON ba.account = rv.reviewer_account
+                WHERE rp.status = 'open'
+                ORDER BY rp.created_at DESC`)
+      .all()
+  ).results || [];
+
+  return reports.map((row) => ({
+    profileSlug: row.profile_slug,
+    reportId: row.report_id,
+    reviewId: row.review_id,
+    reportedBy: row.reported_by,
+    reviewerAccount: row.reviewer_account || '',
+    reviewerDisplay: row.reviewer_display || '',
+    reason: row.reason || '',
+    rating: row.rating || '',
+    createdAt: row.created_at,
+    blocked: Boolean(row.blocked_account)
+  }));
+}
+
 export async function handleApiRequest(request, env) {
   await ensureSchema(env);
   const url = new URL(request.url);
@@ -247,6 +341,7 @@ export async function handleApiRequest(request, env) {
   if (pathname === '/api/profile/create' && request.method === 'POST') {
     const user = await requireSession(request, env);
     if (!user) return json({ error: 'unauthorized' }, { status: 401 });
+    if (await isBlockedAccount(env, user.account)) return json({ error: 'blocked_user' }, { status: 403 });
     if (isRateLimited(request, user, 'profile_create', 6)) return json({ error: 'rate_limited' }, { status: 429 });
 
     const slug = slugify((await bodyJson(request)).slug);
@@ -263,6 +358,7 @@ export async function handleApiRequest(request, env) {
   if (pathname === '/api/profile/claim' && request.method === 'POST') {
     const user = await requireSession(request, env);
     if (!user) return json({ error: 'unauthorized' }, { status: 401 });
+    if (await isBlockedAccount(env, user.account)) return json({ error: 'blocked_user' }, { status: 403 });
     if (isRateLimited(request, user, 'profile_claim', 10)) return json({ error: 'rate_limited' }, { status: 429 });
 
     const slug = slugify((await bodyJson(request)).user);
@@ -279,6 +375,7 @@ export async function handleApiRequest(request, env) {
   if (pathname === '/api/profile/settings' && request.method === 'POST') {
     const user = await requireSession(request, env);
     if (!user) return json({ error: 'unauthorized' }, { status: 401 });
+    if (await isBlockedAccount(env, user.account)) return json({ error: 'blocked_user' }, { status: 403 });
     if (isRateLimited(request, user, 'profile_settings', 20)) return json({ error: 'rate_limited' }, { status: 429 });
 
     const body = await bodyJson(request);
@@ -300,6 +397,7 @@ export async function handleApiRequest(request, env) {
   if (pathname === '/api/review' && request.method === 'POST') {
     const user = await requireSession(request, env);
     if (!user) return json({ error: 'unauthorized' }, { status: 401 });
+    if (await isBlockedAccount(env, user.account)) return json({ error: 'blocked_user' }, { status: 403 });
     if (isRateLimited(request, user, 'review_write', 12)) return json({ error: 'rate_limited' }, { status: 429 });
 
     const body = await bodyJson(request);
@@ -328,6 +426,7 @@ export async function handleApiRequest(request, env) {
   if (pathname === '/api/report' && request.method === 'POST') {
     const user = await requireSession(request, env);
     if (!user) return json({ error: 'unauthorized' }, { status: 401 });
+    if (await isBlockedAccount(env, user.account)) return json({ error: 'blocked_user' }, { status: 403 });
     if (isRateLimited(request, user, 'report_write', 12)) return json({ error: 'rate_limited' }, { status: 429 });
 
     const body = await bodyJson(request);
@@ -364,6 +463,61 @@ export async function handleApiRequest(request, env) {
       await saveProfile(env, slug, profile);
     }
     return json({ ok: true, profile: sanitizeProfile(profile) });
+  }
+
+  if (pathname === '/api/admin/reports' && request.method === 'GET') {
+    const user = await requireSession(request, env);
+    if (!user) return json({ error: 'unauthorized' }, { status: 401 });
+    if (!isAdmin(user)) return json({ error: 'forbidden' }, { status: 403 });
+    return json({ reports: await collectOpenReports(env) });
+  }
+
+  if (pathname === '/api/admin/report/action' && request.method === 'POST') {
+    const user = await requireSession(request, env);
+    if (!user) return json({ error: 'unauthorized' }, { status: 401 });
+    if (!isAdmin(user)) return json({ error: 'forbidden' }, { status: 403 });
+    if (isRateLimited(request, user, 'admin_report_action', 60)) return json({ error: 'rate_limited' }, { status: 429 });
+
+    const body = await bodyJson(request);
+    const profileSlug = slugify(body.profileSlug);
+    const reportId = String(body.reportId || '');
+    const action = String(body.action || '');
+    if (!isValidSlug(profileSlug) || !reportId || !['keep', 'delete_review', 'dismiss'].includes(action)) {
+      return json({ error: 'invalid_input' }, { status: 400 });
+    }
+
+    const profile = await getProfile(env, profileSlug);
+    if (!profile) return json({ error: 'profile_not_found' }, { status: 404 });
+    const report = profile.reports.find((r) => r.id === reportId);
+    if (!report) return json({ error: 'report_not_found' }, { status: 404 });
+
+    if (action === 'delete_review') {
+      profile.reviews = profile.reviews.filter((r) => r.id !== report.reviewId);
+      profile.reports = profile.reports.filter((r) => r.reviewId !== report.reviewId);
+    } else if (action === 'dismiss') {
+      profile.reports = profile.reports.filter((r) => r.id !== reportId);
+    } else {
+      report.status = 'resolved';
+      report.resolvedAt = new Date().toISOString();
+    }
+
+    await saveProfile(env, profileSlug, profile);
+    return json({ ok: true, reports: await collectOpenReports(env) });
+  }
+
+  if (pathname === '/api/admin/block' && request.method === 'POST') {
+    const user = await requireSession(request, env);
+    if (!user) return json({ error: 'unauthorized' }, { status: 401 });
+    if (!isAdmin(user)) return json({ error: 'forbidden' }, { status: 403 });
+    if (isRateLimited(request, user, 'admin_block_action', 60)) return json({ error: 'rate_limited' }, { status: 429 });
+
+    const body = await bodyJson(request);
+    const account = String(body.account || '');
+    const blocked = Boolean(body.blocked);
+    if (!/^dc_[0-9]+$/.test(account)) return json({ error: 'invalid_input' }, { status: 400 });
+
+    await setBlockedAccount(env, account, blocked, user.account);
+    return json({ ok: true });
   }
 
   return json({ error: 'not_found' }, { status: 404 });

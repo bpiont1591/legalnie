@@ -314,6 +314,10 @@ input:focus, select:focus { outline: none; border-color: rgba(116, 154, 255, 0.8
 .review-author { color: #9fb2ff; display: inline-flex; align-items: center; gap: .4rem; margin-top: 0.45rem; }
 .review-avatar { width: 20px; height: 20px; border-radius: 999px; border: 1px solid rgba(255,255,255,.22); object-fit: cover; }
 
+.admin-panel { border-color: rgba(185, 154, 255, .45); background: linear-gradient(170deg, rgba(119, 79, 255, .14), rgba(61, 40, 131, .08)); }
+.admin-review { border-color: rgba(188, 161, 255, .35); }
+.admin-actions { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .6rem; }
+
 .empty-state { border-style: dashed; }
 .hidden { display: none; }
 code { background: rgba(255, 255, 255, 0.08); padding: 0.15rem 0.4rem; border-radius: 6px; }
