@@ -43,7 +43,6 @@
         </div>
       </div>
       <div class="topbar-actions">
-        <button id="copyProfileLink" class="btn btn-secondary" disabled>Kopiuj link profilu</button>
         <button id="logoutBtn" class="btn btn-secondary hidden">Wyloguj</button>
       </div>
     </header>
@@ -52,7 +51,7 @@
       <section id="loginView" class="card login-view">
         <p class="auth-eyebrow">Zacznij tutaj</p>
         <h2>Zaloguj się przez Discord i przejdź do swojego panelu</h2>
-        <p class="muted">Po zalogowaniu od razu zobaczysz panel, gdzie ustawisz własny link profilu, opis i wszystko co potrzebne.</p>
+        <p class="muted">LegitCheck pomaga szybko sprawdzić wiarygodność sprzedawców, budować zaufanie do własnego profilu i lepiej filtrować ryzykowne transakcje.</p>
         <div class="auth-benefits">
           <span>🔒 Bezpieczne logowanie OAuth</span>
           <span>⚡ Szybki start bez zakładania nowego konta</span>
@@ -60,6 +59,30 @@
         </div>
         <button id="discordLoginBtn" class="btn btn-discord" type="button">Zaloguj przez Discord</button>
         <p id="authMessage" class="feedback"></p>
+
+        <div class="hero-grid">
+          <article class="hero-card">
+            <h3>Sprawdzasz przed zakupem</h3>
+            <p>Przeglądasz profil i opinie zanim wyślesz pieniądze. Widzisz historię ocen i sygnały ostrzegawcze.</p>
+          </article>
+          <article class="hero-card">
+            <h3>Budujesz własną reputację</h3>
+            <p>Tworzysz swój link, pokazujesz uczciwe transakcje i zwiększasz zaufanie nowych kupujących.</p>
+          </article>
+          <article class="hero-card">
+            <h3>Masz kontrolę nad profilem</h3>
+            <p>Jako właściciel zarządzasz opisem, nazwą linku i zgłoszeniami w jednym, prostym panelu.</p>
+          </article>
+        </div>
+
+        <div class="how-it-works">
+          <h3>Jak to działa?</h3>
+          <ol>
+            <li>Logujesz się przez Discord.</li>
+            <li>Tworzysz własny link profilu.</li>
+            <li>Zbierasz opinie i zarządzasz reputacją.</li>
+          </ol>
+        </div>
       </section>
 
       <section id="appView" class="hidden">
@@ -84,6 +107,9 @@
             </form>
             <p id="createProfileMessage" class="feedback"></p>
             <p id="createProfileLockMessage" class="feedback warning"></p>
+            <div class="panel-actions">
+              <button id="copyProfileLink" class="btn btn-secondary" disabled>Kopiuj link profilu</button>
+            </div>
 
             <div class="intro-points">
               <p><strong>✔ Nazwa linku pod Twoją kontrolą</strong> — możesz ją zmienić w ustawieniach profilu.</p>

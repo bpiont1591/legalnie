@@ -50,6 +50,55 @@ h1, h2, h3, p { margin: 0; }
 
 #appView { width: 100%; }
 .layout { display: grid; grid-template-columns: 340px 1fr; gap: 1.1rem; padding-bottom: 2.4rem; }
+
+.panel-actions {
+  margin-top: .7rem;
+}
+
+.hero-grid {
+  margin-top: 1.1rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .75rem;
+}
+
+.hero-card {
+  border: 1px solid rgba(168, 188, 255, 0.2);
+  border-radius: 14px;
+  padding: .85rem;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.hero-card h3 {
+  font-size: .95rem;
+  margin-bottom: .35rem;
+}
+
+.hero-card p {
+  color: var(--muted);
+  font-size: .86rem;
+  line-height: 1.45;
+}
+
+.how-it-works {
+  margin-top: 1rem;
+  border-top: 1px solid var(--border);
+  padding-top: .9rem;
+}
+
+.how-it-works h3 {
+  font-size: .95rem;
+  margin-bottom: .45rem;
+}
+
+.how-it-works ol {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: #d7e2ff;
+  display: grid;
+  gap: .35rem;
+  font-size: .9rem;
+}
 .card { border: 1px solid var(--border); background: var(--card); backdrop-filter: blur(14px); border-radius: 18px; padding: 1.3rem; box-shadow: 0 16px 48px rgba(2, 8, 24, 0.48); }
 .card-soft { border: 1px solid var(--border); border-radius: 14px; padding: .9rem; background: rgba(255,255,255,.03); }
 .intro-panel { background: linear-gradient(180deg, rgba(95, 135, 255, 0.16), rgba(71, 203, 255, 0.05) 55%, transparent), var(--card); }
@@ -171,6 +220,6 @@ code { background: rgba(255, 255, 255, 0.08); padding: 0.15rem 0.4rem; border-ra
 
 @media (max-width: 900px) {
   .layout { grid-template-columns: 1fr; }
-  .stats-grid, .rating-grid { grid-template-columns: 1fr; }
+  .stats-grid, .rating-grid, .hero-grid { grid-template-columns: 1fr; }
   .topbar, .footer-inner, .topbar-actions { flex-direction: column; align-items: flex-start; }
 }
