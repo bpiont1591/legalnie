@@ -98,7 +98,11 @@ function applyInitialRouteView() {
   if (hasPublicProfileInUrl) {
     loginView.classList.add('hidden');
     appView.classList.remove('hidden');
+  } else {
+    loginView.classList.remove('hidden');
+    appView.classList.add('hidden');
   }
+  document.body.classList.remove('preboot');
 }
 
 function readAuthErrorFromUrl() {
@@ -553,15 +557,19 @@ copyProfileLink.addEventListener('click', async () => {
 if (yearNode) yearNode.textContent = new Date().getFullYear();
 
 async function boot() {
-  await refreshAuthConfig();
-  await refreshSession();
-  await refreshOwnedProfileSlug();
-  await ensureLoggedInProfile();
-  await refreshCurrentProfile();
-  renderReasonOptions(null);
-  renderAuthUi();
-  renderProfile();
-  readAuthErrorFromUrl();
+  try {
+    await refreshAuthConfig();
+    await refreshSession();
+    await refreshOwnedProfileSlug();
+    await ensureLoggedInProfile();
+    await refreshCurrentProfile();
+    renderReasonOptions(null);
+    renderAuthUi();
+    renderProfile();
+    readAuthErrorFromUrl();
+  } finally {
+    document.body.classList.remove('preboot');
+  }
 }
 
 applyInitialRouteView();

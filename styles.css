@@ -8,6 +8,11 @@
 }
 
 * { box-sizing: border-box; }
+
+.preboot #loginView,
+.preboot #appView {
+  visibility: hidden;
+}
 body {
   margin: 0;
   font-family: 'Inter', sans-serif;
