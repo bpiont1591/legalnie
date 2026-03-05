@@ -2,8 +2,10 @@
 
 ## Cloudflare Pages + GitHub + Discord OAuth (sekrety po stronie Cloudflare)
 
-Ta wersja obsługuje OAuth przez **Cloudflare Pages Functions** (folder `functions/`),
+Ta wersja obsługuje OAuth i API przez **Cloudflare Pages Functions** (folder `functions/`),
 więc sekrety są trzymane po stronie Cloudflare, a nie w frontendzie.
+
+Routing endpointów jest rozdzielony na `functions/auth/[[path]].js` oraz `functions/api/[[path]].js`.
 
 ## 1) Discord Developer Portal
 
