@@ -1,24 +1,36 @@
-const STORAGE_KEY = 'legitcheck_profiles_v1';
-const DEVICE_ID_KEY = 'legitcheck_device_id_v1';
-const REVIEWER_NAME_KEY = 'legitcheck_reviewer_name_v1';
-const REVIEW_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const STORAGE_KEY = 'legitcheck_profiles_v2';
+const SESSION_KEY = 'legitcheck_session_account_v1';
+
+const authForm = document.querySelector('#authForm');
+const accountNameInput = document.querySelector('#accountName');
+const authMessage = document.querySelector('#authMessage');
+const logoutBtn = document.querySelector('#logoutBtn');
 
 const createProfileForm = document.querySelector('#createProfileForm');
 const createProfileMessage = document.querySelector('#createProfileMessage');
 const profileSection = document.querySelector('#profileSection');
 const emptyState = document.querySelector('#emptyState');
 const profileName = document.querySelector('#profileName');
+const ownerBadge = document.querySelector('#ownerBadge');
 const trustLevel = document.querySelector('#trustLevel');
 const legitCount = document.querySelector('#legitCount');
 const soldCount = document.querySelector('#soldCount');
 const scamCount = document.querySelector('#scamCount');
+
+const claimProfileBtn = document.querySelector('#claimProfileBtn');
+const ownerPanelMessage = document.querySelector('#ownerPanelMessage');
+const ownerSettingsForm = document.querySelector('#ownerSettingsForm');
+const ownerBioInput = document.querySelector('#ownerBio');
+const ownerBioDisplay = document.querySelector('#ownerBioDisplay');
+
 const reviewForm = document.querySelector('#reviewForm');
-const reviewsList = document.querySelector('#reviewsList');
-const copyProfileLink = document.querySelector('#copyProfileLink');
 const reasonSelect = document.querySelector('#reason');
-const reviewerNameInput = document.querySelector('#reviewerName');
 const reviewLimitMessage = document.querySelector('#reviewLimitMessage');
 const submitReviewButton = document.querySelector('#submitReview');
+const reviewsList = document.querySelector('#reviewsList');
+const reportsList = document.querySelector('#reportsList');
+
+const copyProfileLink = document.querySelector('#copyProfileLink');
 const yearNode = document.querySelector('#year');
 
 const ratingMeta = {
@@ -33,20 +45,32 @@ const reasonCatalog = {
   scam: ['Brak wysyłki po płatności', 'Towar niezgodny z opisem', 'Brak kontaktu po transakcji', 'Podejrzenie oszustwa']
 };
 
-function slugify(username) {
-  return username.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '');
+function slugify(text) {
+  return String(text).trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '');
 }
 
-function loadProfiles() {
+function loadDb() {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || { profiles: {} };
   } catch {
-    return {};
+    return { profiles: {} };
   }
 }
 
-function saveProfiles(profiles) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(profiles));
+function saveDb(db) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+}
+
+function getSessionAccount() {
+  return slugify(localStorage.getItem(SESSION_KEY) || '');
+}
+
+function setSessionAccount(account) {
+  localStorage.setItem(SESSION_KEY, account);
+}
+
+function clearSessionAccount() {
+  localStorage.removeItem(SESSION_KEY);
 }
 
 function getCurrentUser() {
@@ -60,71 +84,33 @@ function setCurrentUser(user) {
   window.history.replaceState({}, '', url);
 }
 
-function ensureDeviceId() {
-  let id = localStorage.getItem(DEVICE_ID_KEY);
-  if (!id) {
-    id = crypto.randomUUID ? crypto.randomUUID() : `dev-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    localStorage.setItem(DEVICE_ID_KEY, id);
-  }
-  return id;
-}
-
 function ensureProfile(user) {
-  const profiles = loadProfiles();
-  if (!profiles[user]) {
-    profiles[user] = { owner: user, createdAt: new Date().toISOString(), reviews: [] };
-    saveProfiles(profiles);
-  }
-}
-
-function formatRemaining(ms) {
-  const totalMin = Math.ceil(ms / 60000);
-  const h = Math.floor(totalMin / 60);
-  const m = totalMin % 60;
-  return `${h}h ${m}m`;
-}
-
-function getLastReviewByDevice(profile, deviceId) {
-  const sameDeviceReviews = profile.reviews.filter((review) => review.reviewerDeviceId === deviceId);
-  if (!sameDeviceReviews.length) return null;
-  return sameDeviceReviews.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
-}
-
-function updateReviewGuardState() {
-  const user = getCurrentUser();
-  if (!user) return;
-
-  const profiles = loadProfiles();
-  const profile = profiles[user];
-  const deviceId = ensureDeviceId();
-  const lastReview = getLastReviewByDevice(profile, deviceId);
-
-  if (!lastReview) {
-    submitReviewButton.disabled = false;
-    reviewLimitMessage.textContent = 'Możesz teraz wystawić opinię dla tego profilu.';
-    return;
-  }
-
-  const elapsed = Date.now() - new Date(lastReview.createdAt).getTime();
-  const remaining = REVIEW_COOLDOWN_MS - elapsed;
-
-  if (remaining > 0) {
-    submitReviewButton.disabled = true;
-    reviewLimitMessage.textContent = `Limit aktywny: kolejna opinia dla tego profilu za ${formatRemaining(remaining)}.`;
-  } else {
-    submitReviewButton.disabled = false;
-    reviewLimitMessage.textContent = 'Limit minął — możesz ponownie wystawić opinię.';
+  const db = loadDb();
+  if (!db.profiles[user]) {
+    db.profiles[user] = {
+      owner: null,
+      ownerBio: '',
+      createdAt: new Date().toISOString(),
+      reviews: [],
+      reports: []
+    };
+    saveDb(db);
   }
 }
 
 function computeStats(reviews) {
   return reviews.reduce(
     (acc, review) => {
-      acc[review.rating] += 1;
+      if (acc[review.rating] !== undefined) acc[review.rating] += 1;
       return acc;
     },
     { legit: 0, sold: 0, scam: 0 }
   );
+}
+
+function renderReasonOptions(rating) {
+  const options = reasonCatalog[rating] || [];
+  reasonSelect.innerHTML = ['<option value="" selected disabled>Wybierz powód...</option>', ...options.map((r) => `<option value="${r}">${r}</option>`)].join('');
 }
 
 function renderTrustPill(stats) {
@@ -134,7 +120,6 @@ function renderTrustPill(stats) {
     trustLevel.style.background = 'rgba(255,255,255,.13)';
     return;
   }
-
   const trustScore = Math.round(((stats.legit + stats.sold) / total) * 100);
   if (trustScore >= 85) {
     trustLevel.textContent = `Wysokie zaufanie · ${trustScore}%`;
@@ -148,38 +133,126 @@ function renderTrustPill(stats) {
   }
 }
 
-function getSelectedRating() {
-  return document.querySelector('input[name="rating"]:checked')?.value;
+function renderAuthUi() {
+  const account = getSessionAccount();
+  if (account) {
+    authMessage.textContent = `Zalogowano jako @${account}`;
+    logoutBtn.classList.remove('hidden');
+  } else {
+    authMessage.textContent = 'Nie jesteś zalogowany.';
+    logoutBtn.classList.add('hidden');
+  }
 }
 
-function renderReasonOptions(rating) {
-  const options = reasonCatalog[rating] || [];
-  reasonSelect.innerHTML = ['<option value="" selected disabled>Wybierz powód...</option>', ...options.map((reason) => `<option value="${reason}">${reason}</option>`)].join('');
+function renderOwnerPanel(profile) {
+  const account = getSessionAccount();
+  const isOwner = account && profile.owner === account;
+
+  ownerBadge.textContent = profile.owner ? `Właściciel: @${profile.owner}` : 'Właściciel: nieustawiony';
+  ownerBioDisplay.textContent = profile.ownerBio ? `Opis: ${profile.ownerBio}` : '';
+
+  if (!account) {
+    ownerPanelMessage.textContent = 'Zaloguj się, aby claimować profil.';
+    claimProfileBtn.disabled = true;
+    ownerSettingsForm.classList.add('hidden');
+    return;
+  }
+
+  if (!profile.owner) {
+    ownerPanelMessage.textContent = 'Ten profil nie ma właściciela. Możesz go przypisać do swojego konta.';
+    claimProfileBtn.disabled = false;
+    ownerSettingsForm.classList.add('hidden');
+    return;
+  }
+
+  if (isOwner) {
+    ownerPanelMessage.textContent = 'To Twój profil. Możesz edytować opis i moderować zgłoszenia.';
+    claimProfileBtn.disabled = true;
+    ownerSettingsForm.classList.remove('hidden');
+    ownerBioInput.value = profile.ownerBio || '';
+  } else {
+    ownerPanelMessage.textContent = `Profil należy do @${profile.owner}.`;
+    claimProfileBtn.disabled = true;
+    ownerSettingsForm.classList.add('hidden');
+  }
 }
 
-function renderReviews(reviews) {
-  if (!reviews.length) {
+function renderReviewPermission(profile) {
+  const account = getSessionAccount();
+  if (!account) {
+    submitReviewButton.disabled = true;
+    reviewLimitMessage.textContent = 'Zaloguj się, aby wystawić opinię.';
+    return;
+  }
+
+  if (profile.owner === account) {
+    submitReviewButton.disabled = true;
+    reviewLimitMessage.textContent = 'Właściciel profilu nie może wystawiać opinii sam sobie.';
+    return;
+  }
+
+  const existing = profile.reviews.find((r) => r.reviewerAccount === account);
+  if (existing) {
+    submitReviewButton.disabled = false;
+    reviewLimitMessage.textContent = 'Masz już opinię dla tego profilu — wysłanie formularza zaktualizuje Twoją opinię.';
+    return;
+  }
+
+  submitReviewButton.disabled = false;
+  reviewLimitMessage.textContent = 'Możesz dodać 1 opinię dla tego profilu.';
+}
+
+function renderReviews(profile, user) {
+  if (!profile.reviews.length) {
     reviewsList.innerHTML = '<li class="review">Brak opinii dla tego profilu.</li>';
     return;
   }
 
-  reviewsList.innerHTML = reviews
+  const account = getSessionAccount();
+  reviewsList.innerHTML = profile.reviews
     .slice()
     .reverse()
     .map((review) => {
       const date = new Date(review.createdAt).toLocaleDateString('pl-PL');
-      const reason = review.reason?.trim() ? review.reason : 'Brak powodu.';
-      const reviewerName = review.reviewerName || 'Anonim';
+      const canReport = account && account !== review.reviewerAccount;
       return `
         <li class="review">
           <div class="review-head">
             <span>${ratingMeta[review.rating].label}</span>
             <span>${date}</span>
           </div>
-          <p>${reason}</p>
-          <small class="review-author">Opinia od: @${reviewerName}</small>
+          <p>${review.reason}</p>
+          <small class="review-author">Opinia od: @${review.reviewerAccount}</small>
+          ${canReport ? `<button class="btn btn-report" data-report-review="${review.id}" data-report-user="${user}">Zgłoś opinię</button>` : ''}
         </li>`;
     })
+    .join('');
+}
+
+function renderReports(profile) {
+  const account = getSessionAccount();
+  const isOwner = account && profile.owner === account;
+  if (!isOwner) {
+    reportsList.innerHTML = '<li class="review">Brak dostępu do zgłoszeń.</li>';
+    return;
+  }
+
+  const openReports = profile.reports.filter((r) => r.status === 'open');
+  if (!openReports.length) {
+    reportsList.innerHTML = '<li class="review">Brak otwartych zgłoszeń.</li>';
+    return;
+  }
+
+  reportsList.innerHTML = openReports
+    .map(
+      (report) => `
+      <li class="review">
+        <div class="review-head"><span>Zgłoszenie</span><span>${new Date(report.createdAt).toLocaleDateString('pl-PL')}</span></div>
+        <p>Opinia ID: ${report.reviewId}</p>
+        <p>Zgłaszający: @${report.reportedBy}</p>
+        <button class="btn btn-secondary" data-resolve-report="${report.id}">Oznacz jako rozwiązane</button>
+      </li>`
+    )
     .join('');
 }
 
@@ -193,97 +266,184 @@ function renderProfile() {
   }
 
   ensureProfile(user);
-  const profiles = loadProfiles();
-  const profile = profiles[user];
+  const db = loadDb();
+  const profile = db.profiles[user];
   const stats = computeStats(profile.reviews);
 
   profileName.textContent = `@${user}`;
   legitCount.textContent = stats.legit;
   soldCount.textContent = stats.sold;
   scamCount.textContent = stats.scam;
+
   renderTrustPill(stats);
-  renderReviews(profile.reviews);
-  updateReviewGuardState();
+  renderOwnerPanel(profile);
+  renderReviewPermission(profile);
+  renderReviews(profile, user);
+  renderReports(profile);
 
   profileSection.classList.remove('hidden');
   emptyState.classList.add('hidden');
   copyProfileLink.disabled = false;
 }
 
+authForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const account = slugify(new FormData(authForm).get('accountName'));
+  if (!account || account.length < 3) {
+    authMessage.textContent = 'Nick konta musi mieć min. 3 znaki.';
+    return;
+  }
+  setSessionAccount(account);
+  authMessage.textContent = `Zalogowano jako @${account}`;
+  renderAuthUi();
+  renderProfile();
+});
+
+logoutBtn.addEventListener('click', () => {
+  clearSessionAccount();
+  renderAuthUi();
+  renderProfile();
+});
+
 createProfileForm.addEventListener('submit', (event) => {
   event.preventDefault();
-  const rawName = new FormData(createProfileForm).get('username');
-  const user = slugify(String(rawName));
-
+  const user = slugify(new FormData(createProfileForm).get('username'));
   if (!user || user.length < 3) {
-    createProfileMessage.textContent = 'Podaj poprawną nazwę (minimum 3 znaki: litery, cyfry, _ lub -).';
+    createProfileMessage.textContent = 'Podaj poprawną nazwę profilu (min. 3 znaki).';
     return;
   }
 
-  const profiles = loadProfiles();
-  if (profiles[user]) {
-    createProfileMessage.textContent = `Ta nazwa już istnieje. Otwieram profil @${user}.`;
+  const db = loadDb();
+  if (db.profiles[user]) {
+    createProfileMessage.textContent = `Profil @${user} już istnieje — otwarto istniejący profil.`;
     setCurrentUser(user);
     renderProfile();
     return;
   }
 
-  profiles[user] = { owner: user, createdAt: new Date().toISOString(), reviews: [] };
-  saveProfiles(profiles);
+  db.profiles[user] = { owner: null, ownerBio: '', createdAt: new Date().toISOString(), reviews: [], reports: [] };
+  saveDb(db);
   setCurrentUser(user);
-  createProfileMessage.textContent = `Profil @${user} utworzony. Link: ${window.location.href}`;
+  createProfileMessage.textContent = `Utworzono profil @${user}.`;
+  renderProfile();
+});
+
+claimProfileBtn.addEventListener('click', () => {
+  const user = getCurrentUser();
+  const account = getSessionAccount();
+  if (!user || !account) return;
+
+  const db = loadDb();
+  const profile = db.profiles[user];
+  if (!profile.owner) {
+    profile.owner = account;
+    saveDb(db);
+  }
+
+  renderProfile();
+});
+
+ownerSettingsForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  const user = getCurrentUser();
+  const account = getSessionAccount();
+  if (!user || !account) return;
+
+  const db = loadDb();
+  const profile = db.profiles[user];
+  if (profile.owner !== account) return;
+
+  profile.ownerBio = String(new FormData(ownerSettingsForm).get('ownerBio') || '').trim();
+  saveDb(db);
   renderProfile();
 });
 
 reviewForm.addEventListener('change', (event) => {
-  if (event.target.name === 'rating') {
-    renderReasonOptions(getSelectedRating());
-  }
+  if (event.target.name === 'rating') renderReasonOptions(event.target.value);
 });
 
 reviewForm.addEventListener('submit', (event) => {
   event.preventDefault();
   const user = getCurrentUser();
-  if (!user) return;
+  const account = getSessionAccount();
+  if (!user || !account) return;
 
   const formData = new FormData(reviewForm);
   const rating = String(formData.get('rating'));
   const reason = String(formData.get('reason') || '').trim();
-  const reviewerName = slugify(String(formData.get('reviewerName') || ''));
+  if (!rating || !reason) return;
 
-  if (!rating || !reason || !reviewerName || reviewerName.length < 3) {
-    reviewLimitMessage.textContent = 'Uzupełnij poprawnie nick opiniującego, ocenę i powód.';
+  const db = loadDb();
+  const profile = db.profiles[user];
+  if (profile.owner === account) {
+    reviewLimitMessage.textContent = 'Nie możesz ocenić własnego profilu.';
     return;
   }
 
-  const profiles = loadProfiles();
-  const profile = profiles[user];
-  const deviceId = ensureDeviceId();
-  const lastReview = getLastReviewByDevice(profile, deviceId);
-
-  if (lastReview) {
-    const elapsed = Date.now() - new Date(lastReview.createdAt).getTime();
-    const remaining = REVIEW_COOLDOWN_MS - elapsed;
-    if (remaining > 0) {
-      submitReviewButton.disabled = true;
-      reviewLimitMessage.textContent = `Możesz dodać kolejną opinię za ${formatRemaining(remaining)}.`;
-      return;
-    }
+  const existing = profile.reviews.find((review) => review.reviewerAccount === account);
+  if (existing) {
+    existing.rating = rating;
+    existing.reason = reason;
+    existing.updatedAt = new Date().toISOString();
+  } else {
+    profile.reviews.push({
+      id: `rvw_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
+      rating,
+      reason,
+      reviewerAccount: account,
+      createdAt: new Date().toISOString()
+    });
   }
 
-  profile.reviews.push({
-    rating,
-    reason,
-    reviewerName,
-    reviewerDeviceId: deviceId,
+  saveDb(db);
+  reviewForm.reset();
+  renderReasonOptions(null);
+  renderProfile();
+});
+
+reviewsList.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-report-review]');
+  if (!button) return;
+
+  const user = button.dataset.reportUser;
+  const reviewId = button.dataset.reportReview;
+  const account = getSessionAccount();
+  if (!user || !reviewId || !account) return;
+
+  const db = loadDb();
+  const profile = db.profiles[user];
+  const already = profile.reports.find((r) => r.reviewId === reviewId && r.reportedBy === account && r.status === 'open');
+  if (already) return;
+
+  profile.reports.push({
+    id: `rep_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
+    reviewId,
+    reportedBy: account,
+    status: 'open',
     createdAt: new Date().toISOString()
   });
+  saveDb(db);
+  renderProfile();
+});
 
-  saveProfiles(profiles);
-  localStorage.setItem(REVIEWER_NAME_KEY, reviewerName);
-  reviewForm.reset();
-  reviewerNameInput.value = reviewerName;
-  renderReasonOptions(null);
+reportsList.addEventListener('click', (event) => {
+  const btn = event.target.closest('[data-resolve-report]');
+  if (!btn) return;
+
+  const user = getCurrentUser();
+  const account = getSessionAccount();
+  if (!user || !account) return;
+
+  const db = loadDb();
+  const profile = db.profiles[user];
+  if (profile.owner !== account) return;
+
+  const report = profile.reports.find((r) => r.id === btn.dataset.resolveReport);
+  if (!report) return;
+
+  report.status = 'resolved';
+  report.resolvedAt = new Date().toISOString();
+  saveDb(db);
   renderProfile();
 });
 
@@ -299,13 +459,8 @@ copyProfileLink.addEventListener('click', async () => {
   }
 });
 
-ensureDeviceId();
-const savedReviewerName = localStorage.getItem(REVIEWER_NAME_KEY);
-if (savedReviewerName) reviewerNameInput.value = savedReviewerName;
+if (yearNode) yearNode.textContent = new Date().getFullYear();
 
 renderReasonOptions(null);
+renderAuthUi();
 renderProfile();
-
-if (yearNode) {
-  yearNode.textContent = new Date().getFullYear();
-}

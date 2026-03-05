@@ -32,18 +32,31 @@
         </div>
         <div>
           <h1>LegitCheck</h1>
-          <p>Profesjonalny profil reputacji</p>
+          <p>Profil reputacji + ochrona antyspam</p>
         </div>
       </div>
-      <button id="copyProfileLink" class="btn btn-secondary" disabled>Kopiuj link profilu</button>
+      <div class="topbar-actions">
+        <button id="copyProfileLink" class="btn btn-secondary" disabled>Kopiuj link profilu</button>
+        <button id="logoutBtn" class="btn btn-secondary hidden">Wyloguj</button>
+      </div>
     </header>
 
     <main class="layout">
       <section class="card panel intro-panel">
-        <h2>Utwórz swój profil</h2>
-        <p class="muted">Podaj nazwę użytkownika — powstanie unikalny link do Twojego profilu.</p>
+        <h2>Konto i profil</h2>
+
+        <form id="authForm" class="stack">
+          <label for="accountName">Zaloguj / załóż konto (nick)</label>
+          <input id="accountName" name="accountName" maxlength="30" placeholder="np. buyer_one" required />
+          <button type="submit" class="btn btn-primary">Zapisz konto lokalne</button>
+        </form>
+        <p id="authMessage" class="feedback"></p>
+
+        <hr class="sep" />
+
+        <h3>Utwórz swój profil</h3>
         <form id="createProfileForm" class="stack">
-          <label for="username">Nazwa użytkownika</label>
+          <label for="username">Nazwa profilu</label>
           <input
             id="username"
             name="username"
@@ -56,9 +69,9 @@
         <p id="createProfileMessage" class="feedback"></p>
 
         <div class="intro-points">
-          <p><strong>✔ Unikalne nazwy:</strong> jedna nazwa = jeden profil.</p>
-          <p><strong>✔ Ograniczenie spamu:</strong> 1 opinia na 24h na profil z urządzenia.</p>
-          <p><strong>✔ Wiarygodność:</strong> opinie podpisywane przez opiniującego.</p>
+          <p><strong>✔ 1 konto = 1 opinia na profil</strong> (z opcją edycji).</p>
+          <p><strong>✔ Claim profilu</strong> przez właściciela i panel zarządzania.</p>
+          <p><strong>✔ Zgłaszanie opinii</strong> i kolejka moderacji.</p>
         </div>
       </section>
 
@@ -67,6 +80,7 @@
           <div>
             <p class="tag">Profil publiczny</p>
             <h2 id="profileName">@profil</h2>
+            <p id="ownerBadge" class="owner-badge">Właściciel: nieustawiony</p>
           </div>
           <span id="trustLevel" class="trust-pill">Brak danych</span>
         </div>
@@ -77,11 +91,22 @@
           <article class="stat scam"><h3>Oszukał ❌</h3><p id="scamCount">0</p></article>
         </div>
 
+        <section class="owner-panel">
+          <h3>Panel właściciela profilu</h3>
+          <p id="ownerPanelMessage" class="muted">Zaloguj się i claimgnij profil.</p>
+          <div class="owner-actions">
+            <button id="claimProfileBtn" class="btn btn-secondary">Claim: To mój profil</button>
+          </div>
+          <form id="ownerSettingsForm" class="stack hidden">
+            <label for="ownerBio">Opis profilu</label>
+            <input id="ownerBio" name="ownerBio" maxlength="80" placeholder="np. Sprzedaję od 2018, szybka wysyłka" />
+            <button type="submit" class="btn btn-primary">Zapisz opis</button>
+          </form>
+          <p id="ownerBioDisplay" class="muted"></p>
+        </section>
+
         <form id="reviewForm" class="stack review-form">
           <h3>Wystaw opinię</h3>
-
-          <label for="reviewerName">Twój nick opiniującego</label>
-          <input id="reviewerName" name="reviewerName" maxlength="30" placeholder="np. kupujacy_krk" required />
 
           <div class="rating-grid" role="radiogroup" aria-label="Typ opinii">
             <label class="rating-card rating-legit">
@@ -105,13 +130,19 @@
           <select id="reason" name="reason" required></select>
 
           <p id="reviewLimitMessage" class="feedback warning"></p>
-          <button type="submit" id="submitReview" class="btn btn-primary">Dodaj opinię</button>
+          <button type="submit" id="submitReview" class="btn btn-primary">Dodaj / zaktualizuj opinię</button>
         </form>
 
         <div>
           <h3>Ostatnie opinie</h3>
           <ul id="reviewsList" class="reviews"></ul>
         </div>
+
+        <section class="moderation card-soft">
+          <h3>Moderacja zgłoszeń</h3>
+          <p class="muted">Widoczne tylko dla właściciela profilu.</p>
+          <ul id="reportsList" class="reviews"></ul>
+        </section>
       </section>
 
       <section id="emptyState" class="card panel empty-state">
