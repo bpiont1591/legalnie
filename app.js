@@ -1,11 +1,11 @@
 const STORAGE_KEY = 'legitcheck_profiles_v2';
 const SESSION_KEY = 'legitcheck_session_user_v2';
-const DISCORD_CLIENT_ID = 'WSTAW_TUTAJ_CLIENT_ID_DISCORD';
+
+const runtimeConfig = window.LEGITCHECK_CONFIG || {};
+const DISCORD_CLIENT_ID = runtimeConfig.DISCORD_CLIENT_ID || '';
 const DISCORD_AUTH_URL = 'https://discord.com/oauth2/authorize';
 const DISCORD_API_ME = 'https://discord.com/api/users/@me';
 
-const authForm = document.querySelector('#authForm');
-const accountNameInput = document.querySelector('#accountName');
 const authMessage = document.querySelector('#authMessage');
 const logoutBtn = document.querySelector('#logoutBtn');
 const discordLoginBtn = document.querySelector('#discordLoginBtn');
@@ -195,17 +195,16 @@ function renderAuthUi() {
   const sessionUser = getSessionUser();
   const account = sessionUser?.account;
   if (account) {
-    const providerLabel = sessionUser.provider === 'discord' ? `Discord: ${sessionUser.display}` : `@${account}`;
-    authMessage.textContent = `Zalogowano jako ${providerLabel}`;
+    authMessage.textContent = `Zalogowano jako Discord: ${sessionUser.display || account}`;
     logoutBtn.classList.remove('hidden');
   } else {
-    authMessage.textContent = 'Nie jesteś zalogowany.';
+    authMessage.textContent = 'Nie jesteś zalogowany. Użyj Discord OAuth.';
     logoutBtn.classList.add('hidden');
   }
 
-  if (DISCORD_CLIENT_ID === 'WSTAW_TUTAJ_CLIENT_ID_DISCORD') {
+  if (!DISCORD_CLIENT_ID) {
     discordLoginBtn.disabled = true;
-    discordLoginBtn.textContent = 'Ustaw CLIENT_ID Discorda w app.js';
+    discordLoginBtn.textContent = 'Brak DISCORD_CLIENT_ID (Cloud Secret)';
   }
 }
 
@@ -217,7 +216,7 @@ function renderOwnerPanel(profile) {
   ownerBioDisplay.textContent = profile.ownerBio ? `Opis: ${profile.ownerBio}` : '';
 
   if (!account) {
-    ownerPanelMessage.textContent = 'Zaloguj się, aby claimować profil.';
+    ownerPanelMessage.textContent = 'Zaloguj się przez Discord, aby claimować profil.';
     claimProfileBtn.disabled = true;
     ownerSettingsForm.classList.add('hidden');
     return;
@@ -246,7 +245,7 @@ function renderReviewPermission(profile) {
   const account = getSessionAccount();
   if (!account) {
     submitReviewButton.disabled = true;
-    reviewLimitMessage.textContent = 'Zaloguj się, aby wystawić opinię.';
+    reviewLimitMessage.textContent = 'Zaloguj się przez Discord, aby wystawić opinię.';
     return;
   }
 
@@ -351,26 +350,9 @@ function renderProfile() {
   copyProfileLink.disabled = false;
 }
 
-authForm.addEventListener('submit', (event) => {
-  event.preventDefault();
-  const account = slugify(new FormData(authForm).get('accountName'));
-  if (!account || account.length < 3) {
-    authMessage.textContent = 'Nick konta musi mieć min. 3 znaki.';
-    return;
-  }
-  setSessionUser({
-    account,
-    provider: 'local',
-    display: account
-  });
-  authMessage.textContent = `Zalogowano jako @${account}`;
-  renderAuthUi();
-  renderProfile();
-});
-
 discordLoginBtn.addEventListener('click', () => {
-  if (DISCORD_CLIENT_ID === 'WSTAW_TUTAJ_CLIENT_ID_DISCORD') {
-    authMessage.textContent = 'Najpierw ustaw DISCORD_CLIENT_ID w app.js i redirect URI w panelu Discord Developer.';
+  if (!DISCORD_CLIENT_ID) {
+    authMessage.textContent = 'Ustaw DISCORD_CLIENT_ID przez Cloud Secret / runtime config.';
     return;
   }
   window.location.href = buildDiscordAuthUrl();

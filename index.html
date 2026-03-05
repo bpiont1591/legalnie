@@ -11,6 +11,12 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
+
+    <!--
+      Runtime config (np. z Cloud Secret / Variables):
+      window.LEGITCHECK_CONFIG = { DISCORD_CLIENT_ID: "..." }
+      Możesz to wstrzyknąć w hostingu jako osobny skrypt przed app.js.
+    -->
   </head>
   <body>
     <div class="background-glow glow-left"></div>
@@ -45,11 +51,6 @@
       <section class="card panel intro-panel">
         <h2>Konto i profil</h2>
 
-        <form id="authForm" class="stack">
-          <label for="accountName">Zaloguj / załóż konto (nick)</label>
-          <input id="accountName" name="accountName" maxlength="30" placeholder="np. buyer_one" required />
-          <button type="submit" class="btn btn-primary">Zapisz konto lokalne</button>
-        </form>
         <button id="discordLoginBtn" class="btn btn-discord" type="button">Zaloguj przez Discord</button>
         <p id="authMessage" class="feedback"></p>
 
@@ -70,7 +71,7 @@
         <p id="createProfileMessage" class="feedback"></p>
 
         <div class="intro-points">
-          <p><strong>✔ 1 konto = 1 opinia na profil</strong> (z opcją edycji).</p>
+          <p><strong>✔ Logowanie tylko Discord</strong> bez kont lokalnych.</p>
           <p><strong>✔ Claim profilu</strong> przez właściciela i panel zarządzania.</p>
           <p><strong>✔ Zgłaszanie opinii</strong> i kolejka moderacji.</p>
         </div>
