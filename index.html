@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="pl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LegitCheck — Profile sprzedawców</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="background-glow"></div>
+
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-badge">LC</span>
+        <div>
+          <h1>LegitCheck</h1>
+          <p>Profesjonalny profil reputacji</p>
+        </div>
+      </div>
+      <button id="copyProfileLink" class="btn btn-secondary" disabled>Kopiuj link profilu</button>
+    </header>
+
+    <main class="layout">
+      <section class="card panel">
+        <h2>Utwórz swój profil</h2>
+        <p class="muted">Podaj nazwę użytkownika — powstanie unikalny link do Twojego profilu.</p>
+        <form id="createProfileForm" class="stack">
+          <label for="username">Nazwa użytkownika</label>
+          <input
+            id="username"
+            name="username"
+            placeholder="np. twoj_sklep"
+            pattern="[a-zA-Z0-9_-]{3,30}"
+            required
+          />
+          <button type="submit" class="btn btn-primary">Przejdź do profilu</button>
+        </form>
+        <p id="createProfileMessage" class="feedback"></p>
+      </section>
+
+      <section id="profileSection" class="card profile hidden">
+        <div class="profile-header">
+          <div>
+            <p class="tag">Profil publiczny</p>
+            <h2 id="profileName">@profil</h2>
+          </div>
+          <span id="trustLevel" class="trust-pill">Brak danych</span>
+        </div>
+
+        <div class="stats-grid">
+          <article class="stat legit">
+            <h3>Legit ✅</h3>
+            <p id="legitCount">0</p>
+          </article>
+          <article class="stat sold">
+            <h3>Sprzedał 💼</h3>
+            <p id="soldCount">0</p>
+          </article>
+          <article class="stat scam">
+            <h3>Oszukał ❌</h3>
+            <p id="scamCount">0</p>
+          </article>
+        </div>
+
+        <form id="reviewForm" class="stack review-form">
+          <h3>Wystaw opinię</h3>
+          <div class="rating-options">
+            <label><input type="radio" name="rating" value="legit" required /> Legit</label>
+            <label><input type="radio" name="rating" value="sold" /> Sprzedał</label>
+            <label><input type="radio" name="rating" value="scam" /> Oszukał</label>
+          </div>
+          <label for="comment">Komentarz (opcjonalnie)</label>
+          <textarea id="comment" name="comment" maxlength="200" placeholder="Napisz krótko jak przebiegła transakcja..."></textarea>
+          <button type="submit" class="btn btn-primary">Dodaj opinię</button>
+        </form>
+
+        <div>
+          <h3>Ostatnie opinie</h3>
+          <ul id="reviewsList" class="reviews"></ul>
+        </div>
+      </section>
+
+      <section id="emptyState" class="card panel">
+        <h2>Brak aktywnego profilu</h2>
+        <p class="muted">Utwórz profil lub otwórz link w formacie <code>?user=nazwa</code>.</p>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
