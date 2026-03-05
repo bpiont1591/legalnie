@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
@@ -8,8 +8,9 @@ const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || '';
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || '';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change-me-please';
 const BASE_URL = process.env.BASE_URL || '';
+const DB_FILE = path.join(process.cwd(), 'data', 'profiles-db.json');
 
-const DB = { profiles: {} };
+let DB = { profiles: {} };
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -22,15 +23,26 @@ const MIME = {
 };
 
 function slugify(text) {
-  return String(text || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9_-]/g, '');
+  return String(text || '').trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '');
 }
 
 function isValidSlug(value) {
   return /^[a-z0-9_-]{3,30}$/.test(value);
+}
+
+async function loadDb() {
+  try {
+    const raw = await readFile(DB_FILE, 'utf8');
+    DB = JSON.parse(raw);
+    if (!DB?.profiles) DB = { profiles: {} };
+  } catch {
+    DB = { profiles: {} };
+  }
+}
+
+async function persistDb() {
+  await mkdir(path.dirname(DB_FILE), { recursive: true });
+  await writeFile(DB_FILE, JSON.stringify(DB, null, 2));
 }
 
 function parseCookies(req) {
@@ -240,6 +252,7 @@ async function handleApi(req, res, url) {
       reviews: [],
       reports: []
     };
+    await persistDb();
     return json(res, 200, { slug, profile: sanitizeProfile(DB.profiles[slug]) });
   }
 
@@ -253,6 +266,7 @@ async function handleApi(req, res, url) {
     const profile = ensureProfile(slug);
     if (profile.owner && profile.owner !== user.account) return json(res, 409, { error: 'already_owned' });
     profile.owner = user.account;
+    await persistDb();
     return json(res, 200, { ok: true, profile: sanitizeProfile(profile) });
   }
 
@@ -276,6 +290,7 @@ async function handleApi(req, res, url) {
       delete DB.profiles[currentSlug];
     }
 
+    await persistDb();
     return json(res, 200, { slug: nextSlug, profile: sanitizeProfile(profile) });
   }
 
@@ -305,7 +320,7 @@ async function handleApi(req, res, url) {
         createdAt: new Date().toISOString()
       });
     }
-
+    await persistDb();
     return json(res, 200, { ok: true, profile: sanitizeProfile(profile) });
   }
 
@@ -327,6 +342,7 @@ async function handleApi(req, res, url) {
         status: 'open',
         createdAt: new Date().toISOString()
       });
+      await persistDb();
     }
 
     return json(res, 200, { ok: true, profile: sanitizeProfile(profile) });
@@ -346,6 +362,7 @@ async function handleApi(req, res, url) {
     if (report) {
       report.status = 'resolved';
       report.resolvedAt = new Date().toISOString();
+      await persistDb();
     }
 
     return json(res, 200, { ok: true, profile: sanitizeProfile(profile) });
@@ -374,24 +391,18 @@ const server = http.createServer(async (req, res) => {
     if (handled !== false) return;
   }
 
-  if (url.pathname === '/auth/config' && req.method === 'GET') {
-    return json(res, 200, { discordConfigured: isDiscordConfigured() });
-  }
-
-  if (url.pathname === '/auth/me' && req.method === 'GET') {
-    return json(res, 200, { user: readSession(req) });
-  }
-
-  if (url.pathname === '/auth/logout' && req.method === 'POST') {
-    return json(res, 200, { ok: true }, { 'Set-Cookie': 'legitcheck_session=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax' });
-  }
-
+  if (url.pathname === '/auth/config' && req.method === 'GET') return json(res, 200, { discordConfigured: isDiscordConfigured() });
+  if (url.pathname === '/auth/me' && req.method === 'GET') return json(res, 200, { user: readSession(req) });
+  if (url.pathname === '/auth/logout' && req.method === 'POST') return json(res, 200, { ok: true }, { 'Set-Cookie': 'legitcheck_session=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax' });
   if (url.pathname === '/auth/discord/start' && req.method === 'GET') return handleDiscordStart(req, res);
   if (url.pathname === '/auth/discord/callback' && req.method === 'GET') return handleDiscordCallback(req, res, url);
 
   return serveStatic(res, url.pathname);
 });
 
-server.listen(PORT, () => {
-  console.log(`LegitCheck server running on http://0.0.0.0:${PORT}`);
+loadDb().then(() => {
+  server.listen(PORT, () => {
+    console.log(`LegitCheck server running on http://0.0.0.0:${PORT}`);
+    console.log(`Database file: ${DB_FILE}`);
+  });
 });

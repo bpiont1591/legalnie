@@ -58,3 +58,12 @@ Aplikacja wyświetla `auth_error` po powrocie na stronę, aby łatwiej diagnozow
 - Po zalogowaniu przechodzisz do panelu zarządzania profilem.
 - Publiczny profil działa pod adresem: `/u/twoj_slug`.
 - Profile, opinie i zgłoszenia obsługują endpointy backendowe `/api/*` (zamiast samego localStorage).
+
+
+## 6) Baza danych
+
+- Local Node zapisuje dane do pliku: `data/profiles-db.json` (trwałe między restartami).
+- Cloudflare Pages Functions obsługuje bazę przez binding `DB` (Cloudflare D1).
+- Jeśli `DB` nie jest podpięte w Cloudflare, funkcje użyją pamięci procesu (tylko awaryjnie, nietrwałe).
+
+Dla Cloudflare dodaj binding D1 o nazwie `DB` w ustawieniach projektu Pages.
