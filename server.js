@@ -11,7 +11,7 @@ const BASE_URL = process.env.BASE_URL || '';
 const DB_FILE = path.join(process.cwd(), 'data', 'profiles-db.json');
 const ADMIN_DISCORD_ID = '1418289596457812088';
 
-let DB = { profiles: {}, blockedAccounts: {} };
+let DB = { profiles: {}, blockedAccounts: {}, messages: [], messageBlocks: {} };
 
 
 const RATE_LIMITS = new Map();
@@ -60,6 +60,10 @@ function isBlockedAccount(account) {
   return Boolean(DB.blockedAccounts?.[account]);
 }
 
+function isMessageBlocked(account) {
+  return Boolean(DB.messageBlocks?.[account]);
+}
+
 function requireNotBlocked(user, res) {
   if (isBlockedAccount(user.account)) {
     json(res, 403, { error: 'blocked_user' });
@@ -91,14 +95,34 @@ function collectOpenReports() {
   return out.sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
 }
 
+function collectPlatformStats() {
+  const owners = new Set(Object.values(DB.profiles || {}).map((p) => p.owner).filter(Boolean));
+  return {
+    profilesCount: Object.keys(DB.profiles || {}).length,
+    ownersCount: owners.size,
+    openReportsCount: collectOpenReports().length,
+    blockedAccountsCount: Object.keys(DB.blockedAccounts || {}).length,
+    messageBlocksCount: Object.keys(DB.messageBlocks || {}).length,
+    messagesCount: (DB.messages || []).length
+  };
+}
+
+function getInbox(account) {
+  return (DB.messages || [])
+    .filter((m) => m.toAccount === account || m.fromAccount === account)
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+}
+
 async function loadDb() {
   try {
     const raw = await readFile(DB_FILE, 'utf8');
     DB = JSON.parse(raw);
     if (!DB?.profiles) DB.profiles = {};
     if (!DB?.blockedAccounts) DB.blockedAccounts = {};
+    if (!DB?.messages) DB.messages = [];
+    if (!DB?.messageBlocks) DB.messageBlocks = {};
   } catch {
-    DB = { profiles: {}, blockedAccounts: {} };
+    DB = { profiles: {}, blockedAccounts: {}, messages: [], messageBlocks: {} };
   }
 }
 
@@ -474,6 +498,66 @@ async function handleApi(req, res, url) {
     if (!user) return;
     if (!isAdmin(user)) return json(res, 403, { error: 'forbidden' });
     return json(res, 200, { reports: collectOpenReports() });
+  }
+
+  if (url.pathname === '/api/admin/stats' && req.method === 'GET') {
+    const user = requireSession(req, res);
+    if (!user) return;
+    if (!isAdmin(user)) return json(res, 403, { error: 'forbidden' });
+    return json(res, 200, { stats: collectPlatformStats() });
+  }
+
+  if (url.pathname === '/api/messages/inbox' && req.method === 'GET') {
+    const user = requireSession(req, res);
+    if (!user) return;
+    return json(res, 200, { messages: getInbox(user.account) });
+  }
+
+  if (url.pathname === '/api/messages/send' && req.method === 'POST') {
+    const user = requireSession(req, res);
+    if (!user) return;
+    if (!requireNotBlocked(user, res)) return;
+    if (isMessageBlocked(user.account)) return json(res, 403, { error: 'message_blocked' });
+    if (isRateLimited(req, user, 'message_send', 20)) return json(res, 429, { error: 'rate_limited' });
+
+    const body = await readJsonBody(req);
+    const toAccount = String(body.toAccount || '');
+    const text = String(body.text || '').trim().slice(0, 500);
+    if (!/^dc_[0-9]+$/.test(toAccount) || !text || toAccount === user.account) return json(res, 400, { error: 'invalid_input' });
+    if (isMessageBlocked(toAccount)) return json(res, 403, { error: 'recipient_blocked' });
+
+    DB.messages.push({ id: `msg_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`, fromAccount: user.account, toAccount, body: text, createdAt: new Date().toISOString() });
+    await persistDb();
+    return json(res, 200, { ok: true });
+  }
+
+  if (url.pathname === '/api/admin/messages' && req.method === 'GET') {
+    const user = requireSession(req, res);
+    if (!user) return;
+    if (!isAdmin(user)) return json(res, 403, { error: 'forbidden' });
+    const messages = (DB.messages || [])
+      .slice()
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+      .slice(0, 300)
+      .map((m) => ({ ...m, fromBlocked: isMessageBlocked(m.fromAccount) }));
+    return json(res, 200, { messages });
+  }
+
+  if (url.pathname === '/api/admin/message-block' && req.method === 'POST') {
+    const user = requireSession(req, res);
+    if (!user) return;
+    if (!isAdmin(user)) return json(res, 403, { error: 'forbidden' });
+    if (isRateLimited(req, user, 'admin_message_block', 60)) return json(res, 429, { error: 'rate_limited' });
+
+    const body = await readJsonBody(req);
+    const account = String(body.account || '');
+    const blocked = Boolean(body.blocked);
+    if (!/^dc_[0-9]+$/.test(account)) return json(res, 400, { error: 'invalid_input' });
+    if (!DB.messageBlocks) DB.messageBlocks = {};
+    if (blocked) DB.messageBlocks[account] = { blockedAt: new Date().toISOString(), blockedBy: user.account };
+    else delete DB.messageBlocks[account];
+    await persistDb();
+    return json(res, 200, { ok: true });
   }
 
   if (url.pathname === '/api/admin/report/action' && req.method === 'POST') {

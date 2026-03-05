@@ -277,6 +277,8 @@ input:focus, select:focus { outline: none; border-color: rgba(116, 154, 255, 0.8
   border-bottom: 1px solid rgba(156, 179, 255, .18);
 }
 .profile-header-actions { display: flex; align-items: center; gap: .55rem; }
+.inbox-panel { margin-bottom: 1rem; }
+.admin-stats { margin: .5rem 0 .8rem; grid-template-columns: repeat(3, minmax(120px, 1fr)); }
 .tag { color: var(--muted); font-size: 0.85rem; }
 .owner-badge { margin-top: .4rem; color: #a9c1ff; font-size: .9rem; display: inline-flex; align-items: center; gap: .45rem; }
 .owner-avatar { width: 24px; height: 24px; border-radius: 999px; border: 1px solid rgba(255,255,255,.25); object-fit: cover; }
@@ -355,6 +357,7 @@ code { background: rgba(255, 255, 255, 0.08); padding: 0.15rem 0.4rem; border-ra
   .layout { grid-template-columns: 1fr; }
   .panel { position: static; }
   .stats-grid, .rating-grid, .hero-grid { grid-template-columns: 1fr; }
+  .admin-stats { grid-template-columns: 1fr; }
   .trust-strip { grid-template-columns: 1fr; }
   .profile-header { align-items: flex-start; }
   .profile-header-actions { width: 100%; justify-content: flex-start; }

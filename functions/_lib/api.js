@@ -2,9 +2,11 @@ import { readSession } from './auth.js';
 
 const ADMIN_DISCORD_ID = '1418289596457812088';
 
-const MEM_DB = globalThis.__legitcheckDb || (globalThis.__legitcheckDb = { profiles: {}, blockedAccounts: {} });
+const MEM_DB = globalThis.__legitcheckDb || (globalThis.__legitcheckDb = { profiles: {}, blockedAccounts: {}, messages: [], messageBlocks: {} });
 const RATE_LIMITS = globalThis.__legitcheckRateLimits || (globalThis.__legitcheckRateLimits = new Map());
 if (!MEM_DB.blockedAccounts) MEM_DB.blockedAccounts = {};
+if (!MEM_DB.messages) MEM_DB.messages = [];
+if (!MEM_DB.messageBlocks) MEM_DB.messageBlocks = {};
 
 const json = (data, init = {}) =>
   new Response(JSON.stringify(data), {
@@ -105,6 +107,18 @@ async function ensureSchema(env) {
       account TEXT PRIMARY KEY,
       blocked_at TEXT NOT NULL,
       blocked_by TEXT NOT NULL
+    )`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS messages (
+      id TEXT PRIMARY KEY,
+      from_account TEXT NOT NULL,
+      to_account TEXT NOT NULL,
+      body TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )`),
+    env.DB.prepare(`CREATE TABLE IF NOT EXISTS message_blocks (
+      account TEXT PRIMARY KEY,
+      blocked_at TEXT NOT NULL,
+      blocked_by TEXT NOT NULL
     )`)
   ]);
 
@@ -129,7 +143,10 @@ async function ensureSchema(env) {
     'CREATE INDEX IF NOT EXISTS idx_reviews_reviewer_account ON reviews(reviewer_account)',
     'CREATE INDEX IF NOT EXISTS idx_reports_profile_slug ON reports(profile_slug)',
     'CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status)',
-    'CREATE INDEX IF NOT EXISTS idx_blocked_accounts_blocked_by ON blocked_accounts(blocked_by)'
+    'CREATE INDEX IF NOT EXISTS idx_blocked_accounts_blocked_by ON blocked_accounts(blocked_by)',
+    'CREATE INDEX IF NOT EXISTS idx_messages_to_account ON messages(to_account)',
+    'CREATE INDEX IF NOT EXISTS idx_messages_from_account ON messages(from_account)',
+    'CREATE INDEX IF NOT EXISTS idx_message_blocks_blocked_by ON message_blocks(blocked_by)'
   ];
   for (const stmt of indexStatements) {
     await env.DB.prepare(stmt).run();
@@ -307,6 +324,119 @@ async function collectOpenReports(env) {
   }));
 }
 
+async function isMessageBlocked(env, account) {
+  if (!account) return false;
+  if (!env.DB) return Boolean(MEM_DB.messageBlocks?.[account]);
+  const row = await env.DB.prepare('SELECT account FROM message_blocks WHERE account = ? LIMIT 1').bind(account).first();
+  return Boolean(row?.account);
+}
+
+async function setMessageBlocked(env, account, blocked, adminAccount) {
+  if (!env.DB) {
+    MEM_DB.messageBlocks = MEM_DB.messageBlocks || {};
+    if (blocked) MEM_DB.messageBlocks[account] = { blockedAt: new Date().toISOString(), blockedBy: adminAccount };
+    else delete MEM_DB.messageBlocks[account];
+    return;
+  }
+  if (blocked) {
+    await env.DB
+      .prepare('INSERT OR REPLACE INTO message_blocks (account, blocked_at, blocked_by) VALUES (?, ?, ?)')
+      .bind(account, new Date().toISOString(), adminAccount)
+      .run();
+  } else {
+    await env.DB.prepare('DELETE FROM message_blocks WHERE account = ?').bind(account).run();
+  }
+}
+
+async function saveMessage(env, fromAccount, toAccount, body) {
+  const message = {
+    id: `msg_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
+    fromAccount,
+    toAccount,
+    body,
+    createdAt: new Date().toISOString()
+  };
+  if (!env.DB) {
+    MEM_DB.messages.push(message);
+    return message;
+  }
+  await env.DB
+    .prepare('INSERT INTO messages (id, from_account, to_account, body, created_at) VALUES (?, ?, ?, ?, ?)')
+    .bind(message.id, fromAccount, toAccount, body, message.createdAt)
+    .run();
+  return message;
+}
+
+async function getInbox(env, account) {
+  if (!env.DB) {
+    return (MEM_DB.messages || [])
+      .filter((m) => m.toAccount === account || m.fromAccount === account)
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  }
+  const rows = (
+    await env.DB
+      .prepare('SELECT id, from_account, to_account, body, created_at FROM messages WHERE to_account = ? OR from_account = ? ORDER BY created_at DESC LIMIT 200')
+      .bind(account, account)
+      .all()
+  ).results || [];
+  return rows.map((r) => ({ id: r.id, fromAccount: r.from_account, toAccount: r.to_account, body: r.body, createdAt: r.created_at }));
+}
+
+async function getAdminMessages(env) {
+  if (!env.DB) {
+    return (MEM_DB.messages || [])
+      .slice()
+      .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+      .slice(0, 300)
+      .map((m) => ({ ...m, fromBlocked: Boolean(MEM_DB.messageBlocks?.[m.fromAccount]) }));
+  }
+  const rows = (
+    await env.DB
+      .prepare('SELECT id, from_account, to_account, body, created_at FROM messages ORDER BY created_at DESC LIMIT 300')
+      .all()
+  ).results || [];
+  return Promise.all(rows.map(async (r) => ({
+    id: r.id,
+    fromAccount: r.from_account,
+    toAccount: r.to_account,
+    body: r.body,
+    createdAt: r.created_at,
+    fromBlocked: await isMessageBlocked(env, r.from_account)
+  })));
+}
+
+async function getPlatformStats(env) {
+  if (!env.DB) {
+    const owners = new Set(Object.values(MEM_DB.profiles || {}).map((p) => p.owner).filter(Boolean));
+    return {
+      profilesCount: Object.keys(MEM_DB.profiles || {}).length,
+      ownersCount: owners.size,
+      openReportsCount: (await collectOpenReports(env)).length,
+      blockedAccountsCount: Object.keys(MEM_DB.blockedAccounts || {}).length,
+      messageBlocksCount: Object.keys(MEM_DB.messageBlocks || {}).length,
+      messagesCount: (MEM_DB.messages || []).length
+    };
+  }
+
+  const [profiles, owners, reports, blocked, msgBlocked, msgs] = await Promise.all([
+    env.DB.prepare('SELECT COUNT(*) AS c FROM profiles').first(),
+    env.DB.prepare('SELECT COUNT(*) AS c FROM profiles WHERE owner IS NOT NULL AND owner != ""').first(),
+    env.DB.prepare("SELECT COUNT(*) AS c FROM reports WHERE status = 'open'").first(),
+    env.DB.prepare('SELECT COUNT(*) AS c FROM blocked_accounts').first(),
+    env.DB.prepare('SELECT COUNT(*) AS c FROM message_blocks').first(),
+    env.DB.prepare('SELECT COUNT(*) AS c FROM messages').first()
+  ]);
+
+  return {
+    profilesCount: Number(profiles?.c || 0),
+    ownersCount: Number(owners?.c || 0),
+    openReportsCount: Number(reports?.c || 0),
+    blockedAccountsCount: Number(blocked?.c || 0),
+    messageBlocksCount: Number(msgBlocked?.c || 0),
+    messagesCount: Number(msgs?.c || 0)
+  };
+}
+
 export async function handleApiRequest(request, env) {
   await ensureSchema(env);
   const url = new URL(request.url);
@@ -470,6 +600,59 @@ export async function handleApiRequest(request, env) {
     if (!user) return json({ error: 'unauthorized' }, { status: 401 });
     if (!isAdmin(user)) return json({ error: 'forbidden' }, { status: 403 });
     return json({ reports: await collectOpenReports(env) });
+  }
+
+  if (pathname === '/api/admin/stats' && request.method === 'GET') {
+    const user = await requireSession(request, env);
+    if (!user) return json({ error: 'unauthorized' }, { status: 401 });
+    if (!isAdmin(user)) return json({ error: 'forbidden' }, { status: 403 });
+    return json({ stats: await getPlatformStats(env) });
+  }
+
+  if (pathname === '/api/messages/inbox' && request.method === 'GET') {
+    const user = await requireSession(request, env);
+    if (!user) return json({ error: 'unauthorized' }, { status: 401 });
+    const messages = await getInbox(env, user.account);
+    return json({ messages });
+  }
+
+  if (pathname === '/api/messages/send' && request.method === 'POST') {
+    const user = await requireSession(request, env);
+    if (!user) return json({ error: 'unauthorized' }, { status: 401 });
+    if (await isBlockedAccount(env, user.account)) return json({ error: 'blocked_user' }, { status: 403 });
+    if (await isMessageBlocked(env, user.account)) return json({ error: 'message_blocked' }, { status: 403 });
+    if (isRateLimited(request, user, 'message_send', 20)) return json({ error: 'rate_limited' }, { status: 429 });
+
+    const body = await bodyJson(request);
+    const toAccount = String(body.toAccount || '');
+    const text = String(body.text || '').trim().slice(0, 500);
+    if (!/^dc_[0-9]+$/.test(toAccount) || !text || toAccount === user.account) return json({ error: 'invalid_input' }, { status: 400 });
+    if (await isMessageBlocked(env, toAccount)) return json({ error: 'recipient_blocked' }, { status: 403 });
+
+    const message = await saveMessage(env, user.account, toAccount, text);
+    return json({ ok: true, message });
+  }
+
+  if (pathname === '/api/admin/messages' && request.method === 'GET') {
+    const user = await requireSession(request, env);
+    if (!user) return json({ error: 'unauthorized' }, { status: 401 });
+    if (!isAdmin(user)) return json({ error: 'forbidden' }, { status: 403 });
+    return json({ messages: await getAdminMessages(env) });
+  }
+
+  if (pathname === '/api/admin/message-block' && request.method === 'POST') {
+    const user = await requireSession(request, env);
+    if (!user) return json({ error: 'unauthorized' }, { status: 401 });
+    if (!isAdmin(user)) return json({ error: 'forbidden' }, { status: 403 });
+    if (isRateLimited(request, user, 'admin_message_block', 60)) return json({ error: 'rate_limited' }, { status: 429 });
+
+    const body = await bodyJson(request);
+    const account = String(body.account || '');
+    const blocked = Boolean(body.blocked);
+    if (!/^dc_[0-9]+$/.test(account)) return json({ error: 'invalid_input' }, { status: 400 });
+
+    await setMessageBlocked(env, account, blocked, user.account);
+    return json({ ok: true });
   }
 
   if (pathname === '/api/admin/report/action' && request.method === 'POST') {
