@@ -128,7 +128,6 @@ function applyInitialRouteView() {
     loginView.classList.remove('hidden');
     appView.classList.add('hidden');
   }
-  document.body.classList.remove('preboot');
 }
 
 function readAuthErrorFromUrl() {
@@ -723,4 +722,4 @@ async function boot() {
 }
 
 applyInitialRouteView();
-boot();
+void boot();
