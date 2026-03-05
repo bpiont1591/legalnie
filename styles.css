@@ -38,6 +38,19 @@ h1, h2, h3, p { margin: 0; }
 .stack { display: flex; flex-direction: column; gap: 0.65rem; margin-top: 0.9rem; }
 .sep { border: 0; border-top: 1px solid var(--border); margin: 1rem 0; }
 
+
+.auth-box {
+  border: 1px solid rgba(124, 151, 255, 0.25);
+  border-radius: 14px;
+  padding: .8rem;
+  background: linear-gradient(180deg, rgba(88,101,242,.15), rgba(88,101,242,.05));
+}
+
+input:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
 label { font-size: 0.94rem; color: var(--muted); }
 input, select, button { font: inherit; }
 input, select {

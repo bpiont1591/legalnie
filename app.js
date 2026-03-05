@@ -12,6 +12,8 @@ const discordLoginBtn = document.querySelector('#discordLoginBtn');
 
 const createProfileForm = document.querySelector('#createProfileForm');
 const createProfileMessage = document.querySelector('#createProfileMessage');
+const createProfileLockMessage = document.querySelector('#createProfileLockMessage');
+const createProfileBtn = document.querySelector('#createProfileBtn');
 const profileSection = document.querySelector('#profileSection');
 const emptyState = document.querySelector('#emptyState');
 const profileName = document.querySelector('#profileName');
@@ -191,6 +193,18 @@ function renderTrustPill(stats) {
   }
 }
 
+
+function renderCreateProfileAccess() {
+  const account = getSessionAccount();
+  const disabled = !account;
+  createProfileBtn.disabled = disabled;
+  const usernameInput = document.querySelector('#username');
+  if (usernameInput) usernameInput.disabled = disabled;
+  createProfileLockMessage.textContent = disabled
+    ? 'Najpierw zaloguj się przez Discord, aby utworzyć własny link profilu.'
+    : 'Jesteś zalogowany — możesz utworzyć własny link profilu.';
+}
+
 function renderAuthUi() {
   const sessionUser = getSessionUser();
   const account = sessionUser?.account;
@@ -206,6 +220,8 @@ function renderAuthUi() {
     discordLoginBtn.disabled = true;
     discordLoginBtn.textContent = 'Brak DISCORD_CLIENT_ID (Cloud Secret)';
   }
+
+  renderCreateProfileAccess();
 }
 
 function renderOwnerPanel(profile) {
@@ -367,6 +383,11 @@ logoutBtn.addEventListener('click', () => {
 createProfileForm.addEventListener('submit', (event) => {
   event.preventDefault();
   const user = slugify(new FormData(createProfileForm).get('username'));
+  if (!getSessionAccount()) {
+    createProfileMessage.textContent = 'Zaloguj się przez Discord, aby utworzyć profil.';
+    return;
+  }
+
   if (!user || user.length < 3) {
     createProfileMessage.textContent = 'Podaj poprawną nazwę profilu (min. 3 znaki).';
     return;

@@ -51,8 +51,10 @@
       <section class="card panel intro-panel">
         <h2>Konto i profil</h2>
 
-        <button id="discordLoginBtn" class="btn btn-discord" type="button">Zaloguj przez Discord</button>
-        <p id="authMessage" class="feedback"></p>
+        <div class="auth-box">
+          <button id="discordLoginBtn" class="btn btn-discord" type="button">Zaloguj przez Discord</button>
+          <p id="authMessage" class="feedback"></p>
+        </div>
 
         <hr class="sep" />
 
@@ -66,9 +68,10 @@
             pattern="[a-zA-Z0-9_-]{3,30}"
             required
           />
-          <button type="submit" class="btn btn-primary">Utwórz profil</button>
+          <button type="submit" id="createProfileBtn" class="btn btn-primary">Utwórz profil</button>
         </form>
         <p id="createProfileMessage" class="feedback"></p>
+        <p id="createProfileLockMessage" class="feedback warning"></p>
 
         <div class="intro-points">
           <p><strong>✔ Logowanie tylko Discord</strong> bez kont lokalnych.</p>
