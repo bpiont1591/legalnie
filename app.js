@@ -3,6 +3,9 @@ const STORAGE_KEY = 'legitcheck_profiles_v2';
 let sessionUser = null;
 let discordConfigured = true;
 
+const loginView = document.querySelector('#loginView');
+const appView = document.querySelector('#appView');
+
 const authMessage = document.querySelector('#authMessage');
 const logoutBtn = document.querySelector('#logoutBtn');
 const discordLoginBtn = document.querySelector('#discordLoginBtn');
@@ -23,7 +26,9 @@ const scamCount = document.querySelector('#scamCount');
 const claimProfileBtn = document.querySelector('#claimProfileBtn');
 const ownerPanelMessage = document.querySelector('#ownerPanelMessage');
 const ownerSettingsForm = document.querySelector('#ownerSettingsForm');
+const ownerSettingsMessage = document.querySelector('#ownerSettingsMessage');
 const ownerBioInput = document.querySelector('#ownerBio');
+const profileSlugInput = document.querySelector('#profileSlug');
 const ownerBioDisplay = document.querySelector('#ownerBioDisplay');
 
 const reviewForm = document.querySelector('#reviewForm');
@@ -67,7 +72,6 @@ function saveDb(db) {
 function getSessionAccount() {
   return sessionUser?.account || '';
 }
-
 
 function readAuthErrorFromUrl() {
   const url = new URL(window.location.href);
@@ -131,22 +135,10 @@ function findOwnedProfile(account) {
 function ensureLoggedInProfile() {
   const account = getSessionAccount();
   if (!account) return;
-
-  const selected = getCurrentUser();
-  if (selected) return;
+  if (getCurrentUser()) return;
 
   const ownedProfile = findOwnedProfile(account);
-  if (ownedProfile) {
-    setCurrentUser(ownedProfile);
-    return;
-  }
-
-  const fallbackUser = slugify(account);
-  ensureProfile(fallbackUser);
-  const db = loadDb();
-  db.profiles[fallbackUser].owner = account;
-  saveDb(db);
-  setCurrentUser(fallbackUser);
+  if (ownedProfile) setCurrentUser(ownedProfile);
 }
 
 function ensureProfile(user) {
@@ -185,6 +177,7 @@ function renderTrustPill(stats) {
     trustLevel.style.background = 'rgba(255,255,255,.13)';
     return;
   }
+
   const trustScore = Math.round(((stats.legit + stats.sold) / total) * 100);
   if (trustScore >= 85) {
     trustLevel.textContent = `Wysokie zaufanie · ${trustScore}%`;
@@ -209,12 +202,18 @@ function renderCreateProfileAccess() {
 }
 
 function renderAuthUi() {
-  if (sessionUser?.account) {
+  const isLoggedIn = Boolean(sessionUser?.account);
+  if (isLoggedIn) {
     authMessage.textContent = `Zalogowano jako Discord: ${sessionUser.display || sessionUser.account}`;
     logoutBtn.classList.remove('hidden');
+    loginView.classList.add('hidden');
+    appView.classList.remove('hidden');
   } else {
-    authMessage.textContent = 'Nie jesteś zalogowany. Użyj Discord OAuth.';
+    authMessage.textContent = 'Zaloguj się, aby wejść do panelu.';
     logoutBtn.classList.add('hidden');
+    loginView.classList.remove('hidden');
+    appView.classList.add('hidden');
+    setCurrentUser('');
   }
 
   discordLoginBtn.disabled = !discordConfigured;
@@ -231,6 +230,7 @@ function renderOwnerPanel(profile) {
 
   ownerBadge.textContent = profile.owner ? `Właściciel: @${profile.owner}` : 'Właściciel: nieustawiony';
   ownerBioDisplay.textContent = profile.ownerBio ? `Opis: ${profile.ownerBio}` : '';
+  ownerSettingsMessage.textContent = '';
 
   if (!account) {
     ownerPanelMessage.textContent = 'Zaloguj się przez Discord, aby claimować profil.';
@@ -247,10 +247,11 @@ function renderOwnerPanel(profile) {
   }
 
   if (isOwner) {
-    ownerPanelMessage.textContent = 'To Twój profil. Możesz edytować opis i moderować zgłoszenia.';
+    ownerPanelMessage.textContent = 'To Twój profil. Możesz zmienić nazwę linku, opis i moderować zgłoszenia.';
     claimProfileBtn.disabled = true;
     ownerSettingsForm.classList.remove('hidden');
     ownerBioInput.value = profile.ownerBio || '';
+    profileSlugInput.value = getCurrentUser();
   } else {
     ownerPanelMessage.textContent = `Profil należy do @${profile.owner}.`;
     claimProfileBtn.disabled = true;
@@ -338,6 +339,13 @@ function renderReports(profile) {
 }
 
 function renderProfile() {
+  if (!getSessionAccount()) {
+    profileSection.classList.add('hidden');
+    emptyState.classList.add('hidden');
+    copyProfileLink.disabled = true;
+    return;
+  }
+
   const user = getCurrentUser();
   if (!user) {
     profileSection.classList.add('hidden');
@@ -412,7 +420,7 @@ createProfileForm.addEventListener('submit', (event) => {
   };
   saveDb(db);
   setCurrentUser(user);
-  createProfileMessage.textContent = `Utworzono profil @${user} i przypisano go do Twojego konta.`;
+  createProfileMessage.textContent = `Gotowe. Profil @${user} został utworzony i przypisany do Ciebie.`;
   renderProfile();
 });
 
@@ -433,15 +441,39 @@ claimProfileBtn.addEventListener('click', () => {
 
 ownerSettingsForm.addEventListener('submit', (event) => {
   event.preventDefault();
-  const user = getCurrentUser();
+  const currentUser = getCurrentUser();
   const account = getSessionAccount();
-  if (!user || !account) return;
+  if (!currentUser || !account) return;
+
+  const formData = new FormData(ownerSettingsForm);
+  const nextSlug = slugify(formData.get('profileSlug'));
+  const nextBio = String(formData.get('ownerBio') || '').trim();
 
   const db = loadDb();
-  const profile = db.profiles[user];
+  const profile = db.profiles[currentUser];
   if (profile.owner !== account) return;
 
-  profile.ownerBio = String(new FormData(ownerSettingsForm).get('ownerBio') || '').trim();
+  if (!nextSlug || nextSlug.length < 3) {
+    ownerSettingsMessage.textContent = 'Nazwa linku musi mieć minimum 3 znaki.';
+    return;
+  }
+
+  if (nextSlug !== currentUser && db.profiles[nextSlug]) {
+    ownerSettingsMessage.textContent = `Nazwa @${nextSlug} jest już zajęta.`;
+    return;
+  }
+
+  profile.ownerBio = nextBio;
+
+  if (nextSlug !== currentUser) {
+    db.profiles[nextSlug] = profile;
+    delete db.profiles[currentUser];
+    setCurrentUser(nextSlug);
+    ownerSettingsMessage.textContent = `Zapisano. Nowy link profilu to @${nextSlug}.`;
+  } else {
+    ownerSettingsMessage.textContent = 'Zmiany zapisane.';
+  }
+
   saveDb(db);
   renderProfile();
 });
