@@ -409,7 +409,8 @@ async function handleApi(req, res, url) {
     const reason = String(body.reason || '').trim().slice(0, 140);
     if (!isValidSlug(slug) || !['legit', 'sold', 'scam'].includes(rating) || !reason) return json(res, 400, { error: 'invalid_input' });
 
-    const profile = ensureProfile(slug);
+    const profile = DB.profiles[slug];
+    if (!profile) return json(res, 404, { error: 'profile_not_found' });
     if (profile.owner === user.account) return json(res, 409, { error: 'self_review_blocked' });
 
     const existing = profile.reviews.find((r) => r.reviewerAccount === user.account);
@@ -444,7 +445,8 @@ async function handleApi(req, res, url) {
     const reviewId = String(body.reviewId || '');
     if (!isValidSlug(slug) || !reviewId) return json(res, 400, { error: 'invalid_input' });
 
-    const profile = ensureProfile(slug);
+    const profile = DB.profiles[slug];
+    if (!profile) return json(res, 404, { error: 'profile_not_found' });
     const already = profile.reports.find((r) => r.reviewId === reviewId && r.reportedBy === user.account && r.status === 'open');
     if (!already) {
       profile.reports.push({
@@ -469,7 +471,8 @@ async function handleApi(req, res, url) {
     const reportId = String(body.reportId || '');
     if (!isValidSlug(slug) || !reportId) return json(res, 400, { error: 'invalid_input' });
 
-    const profile = ensureProfile(slug);
+    const profile = DB.profiles[slug];
+    if (!profile) return json(res, 404, { error: 'profile_not_found' });
     if (profile.owner !== user.account) return json(res, 403, { error: 'forbidden' });
     const report = profile.reports.find((r) => r.id === reportId);
     if (report) {
@@ -563,20 +566,24 @@ async function serveStatic(res, urlPath) {
 }
 
 const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url || '/', getBaseUrl(req));
+  try {
+    const url = new URL(req.url || '/', getBaseUrl(req));
 
-  if (url.pathname.startsWith('/api/')) {
-    const handled = await handleApi(req, res, url);
-    if (handled !== false) return;
+    if (url.pathname.startsWith('/api/')) {
+      const handled = await handleApi(req, res, url);
+      if (handled !== false) return;
+    }
+
+    if (url.pathname === '/auth/config' && req.method === 'GET') return json(res, 200, { discordConfigured: isDiscordConfigured() });
+    if (url.pathname === '/auth/me' && req.method === 'GET') return json(res, 200, { user: readSession(req) });
+    if (url.pathname === '/auth/logout' && req.method === 'POST') return json(res, 200, { ok: true }, { 'Set-Cookie': 'legitcheck_session=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax' });
+    if (url.pathname === '/auth/discord/start' && req.method === 'GET') return handleDiscordStart(req, res);
+    if (url.pathname === '/auth/discord/callback' && req.method === 'GET') return handleDiscordCallback(req, res, url);
+
+    return serveStatic(res, url.pathname);
+  } catch {
+    return json(res, 500, { error: 'internal_error' });
   }
-
-  if (url.pathname === '/auth/config' && req.method === 'GET') return json(res, 200, { discordConfigured: isDiscordConfigured() });
-  if (url.pathname === '/auth/me' && req.method === 'GET') return json(res, 200, { user: readSession(req) });
-  if (url.pathname === '/auth/logout' && req.method === 'POST') return json(res, 200, { ok: true }, { 'Set-Cookie': 'legitcheck_session=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax' });
-  if (url.pathname === '/auth/discord/start' && req.method === 'GET') return handleDiscordStart(req, res);
-  if (url.pathname === '/auth/discord/callback' && req.method === 'GET') return handleDiscordCallback(req, res, url);
-
-  return serveStatic(res, url.pathname);
 });
 
 loadDb().then(() => {

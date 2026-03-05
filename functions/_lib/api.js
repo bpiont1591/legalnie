@@ -437,7 +437,8 @@ export async function handleApiRequest(request, env) {
     const reason = String(body.reason || '').trim().slice(0, 140);
     if (!isValidSlug(slug) || !['legit', 'sold', 'scam'].includes(rating) || !reason) return json({ error: 'invalid_input' }, { status: 400 });
 
-    const profile = (await getProfile(env, slug)) || { owner: null, ownerDisplay: '', ownerAvatar: '', ownerBio: '', createdAt: new Date().toISOString(), reviews: [], reports: [] };
+    const profile = await getProfile(env, slug);
+    if (!profile) return json({ error: 'profile_not_found' }, { status: 404 });
     if (profile.owner === user.account) return json({ error: 'self_review_blocked' }, { status: 409 });
 
     const existing = profile.reviews.find((r) => r.reviewerAccount === user.account);
@@ -465,7 +466,8 @@ export async function handleApiRequest(request, env) {
     const reviewId = String(body.reviewId || '');
     if (!isValidSlug(slug) || !reviewId) return json({ error: 'invalid_input' }, { status: 400 });
 
-    const profile = (await getProfile(env, slug)) || { owner: null, ownerDisplay: '', ownerAvatar: '', ownerBio: '', createdAt: new Date().toISOString(), reviews: [], reports: [] };
+    const profile = await getProfile(env, slug);
+    if (!profile) return json({ error: 'profile_not_found' }, { status: 404 });
     const already = profile.reports.find((r) => r.reviewId === reviewId && r.reportedBy === user.account && r.status === 'open');
     if (!already) {
       profile.reports.push({ id: `rep_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`, reviewId, reportedBy: user.account, status: 'open', createdAt: new Date().toISOString() });

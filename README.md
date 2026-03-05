@@ -82,3 +82,11 @@ Dla Cloudflare dodaj binding D1 o nazwie `DB` w ustawieniach projektu Pages.
 ## 7) Refresh / routing SPA
 
 Dla Cloudflare Pages dodano plik `_redirects`, aby odświeżenie podstron typu `/u/:slug` działało poprawnie (fallback do `index.html`) bez psucia panelu po refreshu.
+
+
+## 8) Jakość i stabilność
+
+- API zwraca teraz `profile_not_found` dla opinii/zgłoszeń kierowanych do nieistniejących profili (bez tworzenia pustych rekordów).
+- Frontend ma bezpieczniejszą obsługę błędów sieci (`network_error`) i nie wykrzacza się przy chwilowym braku połączenia.
+- Dodano testy smoke API (`npm test`) obejmujące autoryzację, tworzenie profilu, opinie i zgłoszenia.
+

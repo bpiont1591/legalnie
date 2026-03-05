@@ -82,13 +82,17 @@ function slugify(text) {
 }
 
 async function api(path, options = {}) {
-  const res = await fetch(path, {
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-    ...options
-  });
-  const data = await res.json().catch(() => ({}));
-  return { ok: res.ok, status: res.status, data };
+  try {
+    const res = await fetch(path, {
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+      ...options
+    });
+    const data = await res.json().catch(() => ({}));
+    return { ok: res.ok, status: res.status, data };
+  } catch {
+    return { ok: false, status: 0, data: { error: 'network_error' } };
+  }
 }
 
 function getSessionAccount() {
@@ -147,12 +151,12 @@ function readAuthErrorFromUrl() {
 
 async function refreshAuthConfig() {
   const result = await api('/auth/config', { method: 'GET' });
-  discordConfigured = Boolean(result.data.discordConfigured);
+  discordConfigured = result.ok ? Boolean(result.data.discordConfigured) : false;
 }
 
 async function refreshSession() {
   const result = await api('/auth/me', { method: 'GET' });
-  sessionUser = result.data.user || null;
+  sessionUser = result.ok ? (result.data.user || null) : null;
 }
 
 async function refreshCurrentProfile() {
@@ -617,7 +621,7 @@ reviewForm.addEventListener('submit', async (event) => {
   });
 
   if (!result.ok) {
-    reviewLimitMessage.textContent = 'Nie udało się dodać opinii.';
+    reviewLimitMessage.textContent = result.data.error === 'profile_not_found' ? 'Ten profil nie istnieje.' : 'Nie udało się dodać opinii.';
     return;
   }
 
@@ -629,10 +633,14 @@ reviewForm.addEventListener('submit', async (event) => {
 reviewsList.addEventListener('click', async (event) => {
   const button = event.target.closest('[data-report-review]');
   if (!button) return;
-  await api('/api/report', {
+  const reportResult = await api('/api/report', {
     method: 'POST',
     body: JSON.stringify({ user: button.dataset.reportUser, reviewId: button.dataset.reportReview })
   });
+  if (!reportResult.ok) {
+    reviewLimitMessage.textContent = reportResult.data.error === 'profile_not_found' ? 'Nie można zgłosić opinii: profil nie istnieje.' : 'Nie udało się zgłosić opinii.';
+    return;
+  }
   await syncAndRender();
 });
 
