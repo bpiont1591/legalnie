@@ -70,3 +70,8 @@ Aplikacja wyświetla `auth_error` po powrocie na stronę, aby łatwiej diagnozow
 - Jeśli `DB` nie jest podpięte w Cloudflare, funkcje użyją pamięci procesu (tylko awaryjnie, nietrwałe).
 
 Dla Cloudflare dodaj binding D1 o nazwie `DB` w ustawieniach projektu Pages.
+
+
+## 7) Refresh / routing SPA
+
+Dla Cloudflare Pages dodano plik `_redirects`, aby odświeżenie podstron typu `/u/:slug` działało poprawnie (fallback do `index.html`) bez psucia panelu po refreshu.
