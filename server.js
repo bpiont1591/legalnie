@@ -377,7 +377,8 @@ async function serveStatic(res, urlPath) {
   try {
     const body = await readFile(filePath);
     const ext = path.extname(filePath);
-    send(res, 200, body, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': 'public, max-age=60' });
+    const cacheControl = ext === '.html' ? 'no-store' : 'public, max-age=60';
+    send(res, 200, body, { 'Content-Type': MIME[ext] || 'application/octet-stream', 'Cache-Control': cacheControl });
   } catch {
     send(res, 404, 'Not found', { 'Content-Type': 'text/plain; charset=utf-8' });
   }

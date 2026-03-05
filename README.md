@@ -48,6 +48,7 @@ Najczęstsze przyczyny:
 - brakuje któregoś secreta w Cloudflare
 - `SESSION_SECRET` jest pusty
 - OAuth ustawiony tylko w Preview, a testujesz Production
+- przeglądarka trzyma stary cache frontendu (zrób twarde odświeżenie: Ctrl/Cmd+Shift+R)
 
 Aplikacja wyświetla `auth_error` po powrocie na stronę, aby łatwiej diagnozować problem.
 
