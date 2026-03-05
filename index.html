@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="pl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LegitCheck — Profile sprzedawców</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="background-glow glow-left"></div>
+    <div class="background-glow glow-right"></div>
+
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo-mark" aria-hidden="true">
+          <svg viewBox="0 0 64 64" role="img">
+            <defs>
+              <linearGradient id="logoGradient" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#46d4ff" />
+                <stop offset="55%" stop-color="#6f7dff" />
+                <stop offset="100%" stop-color="#b26dff" />
+              </linearGradient>
+              <linearGradient id="badgeGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#ffffff" stop-opacity="0.96" />
+                <stop offset="100%" stop-color="#dbe4ff" stop-opacity="0.9" />
+              </linearGradient>
+            </defs>
+            <rect x="4" y="4" width="56" height="56" rx="16" fill="url(#logoGradient)" />
+            <circle cx="48" cy="16" r="8" fill="#19d29f" opacity="0.9" />
+            <path d="M16 28c0-7 6-13 14-13s14 6 14 13v14c0 4-3 7-7 7H23c-4 0-7-3-7-7V28z" fill="url(#badgeGradient)" opacity="0.98" />
+            <path d="M24 33l6 6 11-11" fill="none" stroke="#5468ff" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </div>
+        <div>
+          <h1>LegitCheck</h1>
+          <p>Sprawdź, komu naprawdę warto zaufać przed transakcją.</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <button id="copyProfileLink" class="btn btn-secondary" disabled>Kopiuj link profilu</button>
+        <button id="logoutBtn" class="btn btn-secondary hidden">Wyloguj</button>
+      </div>
+    </header>
+
+    <main class="main-shell">
+      <section id="loginView" class="card login-view">
+        <p class="auth-eyebrow">Zacznij tutaj</p>
+        <h2>Zaloguj się przez Discord i przejdź do swojego panelu</h2>
+        <p class="muted">Po zalogowaniu od razu zobaczysz panel, gdzie ustawisz własny link profilu, opis i wszystko co potrzebne.</p>
+        <div class="auth-benefits">
+          <span>🔒 Bezpieczne logowanie OAuth</span>
+          <span>⚡ Szybki start bez zakładania nowego konta</span>
+          <span>🎯 Twój unikalny link profilu</span>
+        </div>
+        <button id="discordLoginBtn" class="btn btn-discord" type="button">Zaloguj przez Discord</button>
+        <p id="authMessage" class="feedback"></p>
+      </section>
+
+      <section id="appView" class="hidden">
+        <div class="layout">
+          <section class="card panel intro-panel">
+            <h2>Twój panel</h2>
+            <p class="muted">Tutaj tworzysz profil, zmieniasz nazwę linku i zarządzasz opiniami.</p>
+
+            <hr class="sep" />
+
+            <h3>Utwórz swój profil</h3>
+            <form id="createProfileForm" class="stack">
+              <label for="username">Nazwa profilu</label>
+              <input
+                id="username"
+                name="username"
+                placeholder="np. twoj_sklep"
+                pattern="[a-zA-Z0-9_-]{3,30}"
+                required
+              />
+              <button type="submit" id="createProfileBtn" class="btn btn-primary">Utwórz profil</button>
+            </form>
+            <p id="createProfileMessage" class="feedback"></p>
+            <p id="createProfileLockMessage" class="feedback warning"></p>
+
+            <div class="intro-points">
+              <p><strong>✔ Nazwa linku pod Twoją kontrolą</strong> — możesz ją zmienić w ustawieniach profilu.</p>
+              <p><strong>✔ Opinie i zgłoszenia</strong> w jednym miejscu.</p>
+              <p><strong>✔ Prosty workflow</strong> od logowania do gotowego profilu.</p>
+            </div>
+          </section>
+
+          <section id="profileSection" class="card profile hidden">
+            <div class="profile-header">
+              <div>
+                <p class="tag">Profil publiczny</p>
+                <h2 id="profileName">@profil</h2>
+                <p id="ownerBadge" class="owner-badge">Właściciel: nieustawiony</p>
+              </div>
+              <span id="trustLevel" class="trust-pill">Brak danych</span>
+            </div>
+
+            <div class="stats-grid">
+              <article class="stat legit"><h3>Legit ✅</h3><p id="legitCount">0</p></article>
+              <article class="stat sold"><h3>Sprzedał 💼</h3><p id="soldCount">0</p></article>
+              <article class="stat scam"><h3>Oszukał ❌</h3><p id="scamCount">0</p></article>
+            </div>
+
+            <section class="owner-panel">
+              <h3>Panel właściciela profilu</h3>
+              <p id="ownerPanelMessage" class="muted">Zaloguj się i claimgnij profil.</p>
+              <div class="owner-actions">
+                <button id="claimProfileBtn" class="btn btn-secondary">Claim: To mój profil</button>
+              </div>
+              <form id="ownerSettingsForm" class="stack hidden">
+                <label for="profileSlug">Nazwa linku profilu</label>
+                <input id="profileSlug" name="profileSlug" maxlength="30" pattern="[a-zA-Z0-9_-]{3,30}" placeholder="np. twoj_sklep" />
+                <label for="ownerBio">Opis profilu</label>
+                <input id="ownerBio" name="ownerBio" maxlength="80" placeholder="np. Sprzedaję od 2018, szybka wysyłka" />
+                <button type="submit" class="btn btn-primary">Zapisz zmiany</button>
+              </form>
+              <p id="ownerSettingsMessage" class="feedback"></p>
+              <p id="ownerBioDisplay" class="muted"></p>
+            </section>
+
+            <form id="reviewForm" class="stack review-form">
+              <h3>Wystaw opinię</h3>
+
+              <div class="rating-grid" role="radiogroup" aria-label="Typ opinii">
+                <label class="rating-card rating-legit">
+                  <input type="radio" name="rating" value="legit" required />
+                  <span class="title">Legit ✅</span>
+                  <small>Wszystko przebiegło prawidłowo</small>
+                </label>
+                <label class="rating-card rating-sold">
+                  <input type="radio" name="rating" value="sold" />
+                  <span class="title">Sprzedał 💼</span>
+                  <small>Transakcja zakończona sprzedażą</small>
+                </label>
+                <label class="rating-card rating-scam">
+                  <input type="radio" name="rating" value="scam" />
+                  <span class="title">Oszukał ❌</span>
+                  <small>Zgłoszenie problemu / oszustwa</small>
+                </label>
+              </div>
+
+              <label for="reason">Powód opinii (katalog)</label>
+              <select id="reason" name="reason" required></select>
+
+              <p id="reviewLimitMessage" class="feedback warning"></p>
+              <button type="submit" id="submitReview" class="btn btn-primary">Dodaj / zaktualizuj opinię</button>
+            </form>
+
+            <div>
+              <h3>Ostatnie opinie</h3>
+              <ul id="reviewsList" class="reviews"></ul>
+            </div>
+
+            <section class="moderation card-soft">
+              <h3>Moderacja zgłoszeń</h3>
+              <p class="muted">Widoczne tylko dla właściciela profilu.</p>
+              <ul id="reportsList" class="reviews"></ul>
+            </section>
+          </section>
+
+          <section id="emptyState" class="card panel empty-state">
+            <h2>Nie masz jeszcze aktywnego profilu</h2>
+            <p class="muted">Utwórz swój link po lewej stronie albo otwórz istniejący profil przez <code>?user=nazwa</code>.</p>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        <p>© <span id="year"></span> LegitCheck. Wszystkie prawa zastrzeżone.</p>
+        <nav><a href="#">Regulamin</a><a href="#">Polityka prywatności</a><a href="#">Kontakt</a></nav>
+      </div>
+    </footer>
+
+    <script src="app.js"></script>
+  </body>
+</html>

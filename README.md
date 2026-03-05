@@ -1,1 +1,52 @@
 # legalnie
+
+## Cloudflare Pages + GitHub + Discord OAuth (sekrety po stronie Cloudflare)
+
+Ta wersja obsługuje OAuth przez **Cloudflare Pages Functions** (folder `functions/`),
+więc sekrety są trzymane po stronie Cloudflare, a nie w frontendzie.
+
+## 1) Discord Developer Portal
+
+W `OAuth2` ustaw redirect URI:
+
+- `https://legalnie.pages.dev/auth/discord/callback`
+
+Jeśli masz własną domenę, dodaj też:
+- `https://twoja-domena.pl/auth/discord/callback`
+
+## 2) Cloudflare Pages (Project -> Settings -> Environment Variables)
+
+Dodaj jako **Secrets**:
+
+- `DISCORD_CLIENT_ID`
+- `DISCORD_CLIENT_SECRET`
+- `SESSION_SECRET` (losowy, długi string)
+
+Dodaj jako variable (opcjonalne, ale zalecane):
+
+- `BASE_URL=https://legalnie.pages.dev`
+
+Ustaw to dla `Production` (i opcjonalnie `Preview`).
+
+## 3) GitHub + deploy
+
+1. Commit i push do repo na GitHub.
+2. Cloudflare Pages zaciągnie build/deploy automatycznie.
+3. Po deployu sprawdź:
+   - `https://legalnie.pages.dev/auth/config`
+
+Powinno zwrócić:
+
+```json
+{"discordConfigured":true}
+```
+
+## 4) Co zrobić jeśli logowanie nadal nie działa
+
+Najczęstsze przyczyny:
+- redirect URI w Discord nie jest identyczny 1:1
+- brakuje któregoś secreta w Cloudflare
+- `SESSION_SECRET` jest pusty
+- OAuth ustawiony tylko w Preview, a testujesz Production
+
+Aplikacja wyświetla `auth_error` po powrocie na stronę, aby łatwiej diagnozować problem.
