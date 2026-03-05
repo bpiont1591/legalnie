@@ -90,3 +90,29 @@ test('create profile and add review/report flow', async () => {
   });
   assert.equal(report.status, 200);
 });
+
+
+test('owner can delete profile and create a new one', async () => {
+  const owner = sessionCookie({ account: 'dc_200000000000000011', display: 'owner2' });
+
+  const create = await fetch(`${BASE}/api/profile/create`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: owner },
+    body: JSON.stringify({ slug: 'profil-do-usuniecia' })
+  });
+  assert.equal(create.status, 200);
+
+  const del = await fetch(`${BASE}/api/profile/delete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: owner },
+    body: JSON.stringify({ user: 'profil-do-usuniecia' })
+  });
+  assert.equal(del.status, 200);
+
+  const recreate = await fetch(`${BASE}/api/profile/create`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: owner },
+    body: JSON.stringify({ slug: 'nowy-profil-owner2' })
+  });
+  assert.equal(recreate.status, 200);
+});

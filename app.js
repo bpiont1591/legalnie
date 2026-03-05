@@ -28,6 +28,7 @@ const ownerSettingsForm = document.querySelector('#ownerSettingsForm');
 const ownerSettingsMessage = document.querySelector('#ownerSettingsMessage');
 const ownerBioInput = document.querySelector('#ownerBio');
 const profileSlugInput = document.querySelector('#profileSlug');
+const deleteProfileBtn = document.querySelector('#deleteProfileBtn');
 const ownerBioDisplay = document.querySelector('#ownerBioDisplay');
 
 const reviewForm = document.querySelector('#reviewForm');
@@ -114,6 +115,10 @@ function getSessionAccount() {
 
 function isAdminUser() {
   return getSessionAccount() === ADMIN_ACCOUNT;
+}
+
+function discordStartUrl() {
+  return `/auth/discord/start?returnTo=${encodeURIComponent(`${window.location.pathname}${window.location.search}`)}`;
 }
 
 function getCurrentUser() {
@@ -215,8 +220,7 @@ async function refreshOwnedProfileSlug() {
 }
 
 async function ensureLoggedInProfile() {
-  if (!getSessionAccount() || getCurrentUser()) return;
-  if (ownedProfileSlug) setCurrentUser(ownedProfileSlug);
+  if (!getSessionAccount()) return;
 }
 
 function renderReasonOptions(rating) {
@@ -502,7 +506,7 @@ discordLoginBtn.addEventListener('click', () => {
     authMessage.textContent = 'Brak konfiguracji OAuth na serwerze. Ustaw sekrety i spróbuj ponownie.';
     return;
   }
-  window.location.href = '/auth/discord/start';
+  window.location.href = discordStartUrl();
 });
 
 
@@ -512,7 +516,7 @@ if (panelDiscordLoginBtn) {
       authMessage.textContent = 'Brak konfiguracji OAuth na serwerze. Ustaw sekrety i spróbuj ponownie.';
       return;
     }
-    window.location.href = '/auth/discord/start';
+    window.location.href = discordStartUrl();
   });
 }
 
@@ -569,6 +573,30 @@ createProfileForm.addEventListener('submit', async (event) => {
   await syncAndRender();
   renderAuthUi();
 });
+
+if (deleteProfileBtn) {
+  deleteProfileBtn.addEventListener('click', async () => {
+    const user = getCurrentUser();
+    if (!user) return;
+    if (!window.confirm('Czy na pewno chcesz usunąć profil? Tej operacji nie można cofnąć.')) return;
+
+    const result = await api('/api/profile/delete', {
+      method: 'POST',
+      body: JSON.stringify({ user })
+    });
+
+    if (!result.ok) {
+      ownerSettingsMessage.textContent = 'Nie udało się usunąć profilu.';
+      return;
+    }
+
+    ownedProfileSlug = null;
+    setCurrentUser('');
+    createProfileMessage.textContent = 'Profil został usunięty. Możesz utworzyć nowy.';
+    await syncAndRender();
+    renderAuthUi();
+  });
+}
 
 
 ownerSettingsForm.addEventListener('submit', async (event) => {

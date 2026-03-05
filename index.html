@@ -121,7 +121,7 @@
               <div class="profile-header-actions">
                 <span id="trustLevel" class="trust-pill">Brak danych</span>
                 <button id="copyProfileLink" class="btn btn-secondary profile-copy-btn" disabled>Kopiuj link profilu</button>
-                              </div>
+              </div>
             </div>
 
             <div class="stats-grid">
@@ -132,12 +132,13 @@
 
             <section class="owner-panel">
               <h3>Opis właściciela</h3>
-                            <form id="ownerSettingsForm" class="stack hidden">
+              <form id="ownerSettingsForm" class="stack hidden">
                 <label for="profileSlug">Nazwa linku profilu</label>
                 <input id="profileSlug" name="profileSlug" maxlength="30" pattern="[a-zA-Z0-9_-]{3,30}" placeholder="np. twoj_sklep" />
                 <label for="ownerBio">Opis profilu</label>
                 <input id="ownerBio" name="ownerBio" maxlength="80" placeholder="np. Sprzedaję od 2018, szybka wysyłka" />
                 <button type="submit" class="btn btn-primary">Zapisz zmiany</button>
+                <button type="button" id="deleteProfileBtn" class="btn btn-report">Usuń profil</button>
               </form>
               <p id="ownerSettingsMessage" class="feedback"></p>
               <p id="ownerBioDisplay" class="muted"></p>

@@ -372,19 +372,19 @@ code { background: rgba(255, 255, 255, 0.08); padding: 0.15rem 0.4rem; border-ra
 
 /* ===== Readable redesign (desktop + mobile) ===== */
 :root {
-  --bg: #f3f6ff;
-  --bg-soft: #ffffff;
-  --text: #15233b;
-  --muted: #53627d;
-  --card: #ffffff;
-  --border: #d9e4ff;
+  --bg: #0d1322;
+  --bg-soft: #121a2d;
+  --text: #e9efff;
+  --muted: #b2c0e6;
+  --card: #131d34;
+  --border: #2b3b63;
 }
 
 body {
   background:
     radial-gradient(circle at 0% 0%, rgba(100, 146, 255, 0.2), transparent 28%),
     radial-gradient(circle at 100% 0%, rgba(147, 89, 255, 0.16), transparent 33%),
-    linear-gradient(180deg, #f5f8ff 0%, #eef3ff 100%);
+    linear-gradient(180deg, #0d1425 0%, #0b1120 100%);
   color: var(--text);
 }
 
@@ -395,37 +395,37 @@ body {
 .card {
   background: var(--card);
   border: 1px solid var(--border);
-  box-shadow: 0 12px 32px rgba(24, 46, 93, 0.08);
+  box-shadow: 0 18px 44px rgba(3, 8, 22, 0.46);
 }
-.card::after { background: none; }
+.card::after { background: linear-gradient(130deg, rgba(82, 121, 255, .10), transparent 45%, rgba(164, 106, 255, .08)); }
 
 .login-view {
   min-height: min(780px, calc(100vh - 170px));
-  border-color: #dce7ff;
-  box-shadow: 0 16px 44px rgba(23, 42, 86, 0.1);
+  border-color: #31456f;
+  box-shadow: 0 20px 52px rgba(3, 8, 22, 0.5);
 }
 
 .hero-card,
 .card-soft,
 .quick-guide {
-  background: #f8fbff;
-  border-color: #d8e5ff;
+  background: #18233f;
+  border-color: #304166;
   box-shadow: none;
 }
 
 input, select {
-  background: #fff;
+  background: #10192d;
   color: var(--text);
-  border: 1px solid #ccd9f5;
+  border: 1px solid #2f426c;
 }
 
 .profile {
-  background: #ffffff;
+  background: #121d34;
 }
 
-.owner-badge { color: #2e4675; }
-.review { background: #f8fbff; border-color: #dce7ff; }
-.review p { color: #1f2f52; }
+.owner-badge { color: #b8c8f4; }
+.review { background: #18233f; border-color: #31456f; }
+.review p { color: #d8e4ff; }
 
 .owner-panel h3,
 .review-form h3,
@@ -434,25 +434,25 @@ input, select {
 #adminPanel h4,
 .profile h2,
 .intro-panel h3 {
-  color: #12233f;
+  color: #ecf2ff;
 }
 
 #ownerBioDisplay {
   margin-top: .55rem;
-  color: #2c4067;
+  color: #d6e3ff;
   font-size: .98rem;
   line-height: 1.5;
-  border: 1px solid #dce7ff;
-  background: #f8fbff;
+  border: 1px solid #304366;
+  background: #18233f;
   border-radius: 12px;
   padding: .65rem .75rem;
 }
 
 .footer {
-  border-top: 1px solid #d7e3ff;
-  background: rgba(255,255,255,.8);
+  border-top: 1px solid #27395e;
+  background: rgba(13, 21, 38, .78);
 }
-.footer a { color: #234a92; }
+.footer a { color: #9cc1ff; }
 
 @media (max-width: 900px) {
   .login-view { min-height: auto; }

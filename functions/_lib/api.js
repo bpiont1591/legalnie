@@ -403,6 +403,30 @@ export async function handleApiRequest(request, env) {
     return json({ ok: true, profile: sanitizeProfile(profile) });
   }
 
+
+  if (pathname === '/api/profile/delete' && request.method === 'POST') {
+    const user = await requireSession(request, env);
+    if (!user) return json({ error: 'unauthorized' }, { status: 401 });
+    if (await isBlockedAccount(env, user.account)) return json({ error: 'blocked_user' }, { status: 403 });
+    if (isRateLimited(request, user, 'profile_delete', 10)) return json({ error: 'rate_limited' }, { status: 429 });
+
+    const slug = slugify((await bodyJson(request)).user);
+    if (!isValidSlug(slug)) return json({ error: 'invalid_slug' }, { status: 400 });
+    const profile = await getProfile(env, slug);
+    if (!profile) return json({ error: 'profile_not_found' }, { status: 404 });
+    if (profile.owner !== user.account) return json({ error: 'forbidden' }, { status: 403 });
+
+    if (!env.DB) {
+      delete MEM_DB.profiles[slug];
+      return json({ ok: true });
+    }
+
+    await env.DB.prepare('DELETE FROM reviews WHERE profile_slug = ?').bind(slug).run();
+    await env.DB.prepare('DELETE FROM reports WHERE profile_slug = ?').bind(slug).run();
+    await env.DB.prepare('DELETE FROM profiles WHERE slug = ?').bind(slug).run();
+    return json({ ok: true });
+  }
+
   if (pathname === '/api/profile/settings' && request.method === 'POST') {
     const user = await requireSession(request, env);
     if (!user) return json({ error: 'unauthorized' }, { status: 401 });

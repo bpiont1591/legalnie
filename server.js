@@ -175,6 +175,14 @@ function randomState() {
   return crypto.randomBytes(16).toString('hex');
 }
 
+function sanitizeReturnPath(value) {
+  const v = String(value || '/');
+  if (!v.startsWith('/')) return '/';
+  if (v.startsWith('//')) return '/';
+  if (v.startsWith('/auth/discord/callback')) return '/';
+  return v;
+}
+
 function redirectWithError(res, req, code) {
   const url = new URL('/', getBaseUrl(req));
   url.searchParams.set('auth_error', code);
@@ -259,6 +267,7 @@ async function handleDiscordStart(req, res) {
   if (!isDiscordConfigured()) return redirectWithError(res, req, 'missing_server_oauth_config');
 
   const state = randomState();
+  const returnTo = sanitizeReturnPath(new URL(req.url || '/', getBaseUrl(req)).searchParams.get('returnTo') || '/');
   const redirectUri = `${getBaseUrl(req)}/auth/discord/callback`;
   const params = new URLSearchParams({
     client_id: DISCORD_CLIENT_ID,
@@ -271,7 +280,10 @@ async function handleDiscordStart(req, res) {
 
   res.writeHead(302, {
     Location: `https://discord.com/oauth2/authorize?${params.toString()}`,
-    'Set-Cookie': `legitcheck_oauth_state=${state}; HttpOnly; Path=/; Max-Age=600; SameSite=Lax`
+    'Set-Cookie': [
+      `legitcheck_oauth_state=${state}; HttpOnly; Path=/; Max-Age=600; SameSite=Lax`,
+      `legitcheck_oauth_return=${encodeURIComponent(returnTo)}; HttpOnly; Path=/; Max-Age=600; SameSite=Lax`
+    ]
   });
   res.end();
 }
@@ -281,7 +293,9 @@ async function handleDiscordCallback(req, res, url) {
 
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
-  const storedState = parseCookies(req).legitcheck_oauth_state;
+  const cookies = parseCookies(req);
+  const storedState = cookies.legitcheck_oauth_state;
+  const returnTo = sanitizeReturnPath(cookies.legitcheck_oauth_return || '/');
   if (!code || !state || !storedState || state !== storedState) return redirectWithError(res, req, 'oauth_state_mismatch');
 
   const redirectUri = `${getBaseUrl(req)}/auth/discord/callback`;
@@ -312,10 +326,11 @@ async function handleDiscordCallback(req, res, url) {
   const session = serializeSession({ account, display, avatarUrl, provider: 'discord', discordId: me.id });
 
   res.writeHead(302, {
-    Location: '/',
+    Location: returnTo,
     'Set-Cookie': [
       `legitcheck_session=${session}; HttpOnly; Path=/; Max-Age=2592000; SameSite=Lax`,
-      'legitcheck_oauth_state=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax'
+      'legitcheck_oauth_state=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax',
+      'legitcheck_oauth_return=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax'
     ]
   });
   res.end();
@@ -388,6 +403,25 @@ async function handleApi(req, res, url) {
     profile.ownerAvatar = user.avatarUrl || profile.ownerAvatar || '';
     await persistDb();
     return json(res, 200, { ok: true, profile: sanitizeProfile(profile) });
+  }
+
+
+  if (url.pathname === '/api/profile/delete' && req.method === 'POST') {
+    const user = requireSession(req, res);
+    if (!user) return;
+    if (!requireNotBlocked(user, res)) return;
+    if (isRateLimited(req, user, 'profile_delete', 10)) return json(res, 429, { error: 'rate_limited' });
+    const body = await readJsonBody(req);
+    const slug = slugify(body.user);
+    if (!isValidSlug(slug)) return json(res, 400, { error: 'invalid_slug' });
+
+    const profile = DB.profiles[slug];
+    if (!profile) return json(res, 404, { error: 'profile_not_found' });
+    if (profile.owner !== user.account) return json(res, 403, { error: 'forbidden' });
+
+    delete DB.profiles[slug];
+    await persistDb();
+    return json(res, 200, { ok: true });
   }
 
   if (url.pathname === '/api/profile/settings' && req.method === 'POST') {

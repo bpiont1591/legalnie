@@ -38,12 +38,24 @@ const json = (data, init = {}) =>
     }
   });
 
+function sanitizeReturnPath(value) {
+  const v = String(value || '/');
+  if (!v.startsWith('/')) return '/';
+  if (v.startsWith('//')) return '/';
+  if (v.startsWith('/auth/discord/callback')) return '/';
+  return v;
+}
+
 async function handleStart(request, env) {
   if (!isDiscordConfigured(env)) return redirectWithError(request, env, 'missing_server_oauth_config');
   const state = randomState();
+  const returnTo = sanitizeReturnPath(new URL(request.url).searchParams.get('returnTo') || '/');
   const redirectUri = `${getBaseUrl(request, env)}/auth/discord/callback`;
   const params = new URLSearchParams({ client_id: env.DISCORD_CLIENT_ID, redirect_uri: redirectUri, response_type: 'code', scope: 'identify', prompt: 'consent', state });
-  return new Response(null, { status: 302, headers: { Location: `https://discord.com/oauth2/authorize?${params.toString()}`, 'Set-Cookie': setCookie('legitcheck_oauth_state', state, 600) } });
+  const headers = new Headers({ Location: `https://discord.com/oauth2/authorize?${params.toString()}` });
+  headers.append('Set-Cookie', setCookie('legitcheck_oauth_state', state, 600));
+  headers.append('Set-Cookie', setCookie('legitcheck_oauth_return', returnTo, 600));
+  return new Response(null, { status: 302, headers });
 }
 
 async function handleCallback(request, env) {
@@ -52,7 +64,9 @@ async function handleCallback(request, env) {
 
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
-  const storedState = parseCookies(request).legitcheck_oauth_state;
+  const cookies = parseCookies(request);
+  const storedState = cookies.legitcheck_oauth_state;
+  const returnTo = sanitizeReturnPath(cookies.legitcheck_oauth_return || '/');
   if (!code || !state || !storedState || state !== storedState) return redirectWithError(request, env, 'oauth_state_mismatch');
 
   const redirectUri = `${getBaseUrl(request, env)}/auth/discord/callback`;
@@ -73,9 +87,10 @@ async function handleCallback(request, env) {
   const avatarUrl = resolveDiscordAvatarUrl(me);
   const session = await serializeSession(env.SESSION_SECRET, { account, display, avatarUrl, provider: 'discord', discordId: me.id });
 
-  const headers = new Headers({ Location: `${getBaseUrl(request, env)}/` });
+  const headers = new Headers({ Location: `${getBaseUrl(request, env)}${returnTo}` });
   headers.append('Set-Cookie', setCookie('legitcheck_session', session, 2592000));
   headers.append('Set-Cookie', clearCookie('legitcheck_oauth_state'));
+  headers.append('Set-Cookie', clearCookie('legitcheck_oauth_return'));
   return new Response(null, { status: 302, headers });
 }
 
