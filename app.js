@@ -261,12 +261,20 @@ function renderAuthUi() {
   renderCreateProfileAccess();
 }
 
+function formatAccountWithDisplay(account, display) {
+  const safeAccount = escapeHtml(account || '');
+  const safeDisplay = escapeHtml(display || '');
+  if (safeDisplay) return `${safeDisplay} (@${safeAccount})`;
+  return `@${safeAccount}`;
+}
+
 function renderOwnerPanel(profile) {
   const account = getSessionAccount();
   const isOwner = account && profile.owner === account;
+  const ownerLabel = formatAccountWithDisplay(profile.owner, profile.ownerDisplay);
 
   ownerBadge.innerHTML = profile.owner
-    ? `${profile.ownerAvatar ? `<img class="owner-avatar" src="${escapeHtml(profile.ownerAvatar)}" alt="avatar" />` : ''}<span>Właściciel: @${escapeHtml(profile.owner)}${profile.ownerDisplay ? ` (${escapeHtml(profile.ownerDisplay)})` : ''}</span>`
+    ? `${profile.ownerAvatar ? `<img class="owner-avatar" src="${escapeHtml(profile.ownerAvatar)}" alt="avatar" />` : ''}<span>Właściciel: ${ownerLabel}</span>`
     : 'Właściciel: nieustawiony';
   ownerBioDisplay.textContent = profile.ownerBio ? `Opis: ${profile.ownerBio}` : '';
 
@@ -291,7 +299,7 @@ function renderOwnerPanel(profile) {
     ownerBioInput.value = profile.ownerBio || '';
     profileSlugInput.value = getCurrentUser();
   } else {
-    ownerPanelMessage.textContent = `Profil należy do @${profile.owner}.`;
+    ownerPanelMessage.textContent = `Profil należy do ${formatAccountWithDisplay(profile.owner, profile.ownerDisplay)}.`;
     claimProfileBtn.disabled = true;
     ownerSettingsForm.classList.add('hidden');
   }
