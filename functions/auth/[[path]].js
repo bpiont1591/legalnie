@@ -197,6 +197,8 @@ async function handleApi(request, env, pathname, url) {
     if (!user) return json({ error: 'unauthorized' }, { status: 401 });
     const slug = slugify((await bodyJson(request)).slug);
     if (!isValidSlug(slug)) return json({ error: 'invalid_slug' }, { status: 400 });
+    const ownedSlug = await findOwnedProfile(env, user.account);
+    if (ownedSlug) return json({ error: 'already_has_profile', slug: ownedSlug }, { status: 409 });
     if (await getProfile(env, slug)) return json({ error: 'slug_taken' }, { status: 409 });
 
     const profile = { owner: user.account, ownerBio: '', createdAt: new Date().toISOString(), reviews: [], reports: [] };

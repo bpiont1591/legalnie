@@ -40,6 +40,7 @@ const copyProfileLink = document.querySelector('#copyProfileLink');
 const yearNode = document.querySelector('#year');
 
 let currentProfile = null;
+let ownedProfileSlug = null;
 
 const ratingMeta = {
   legit: { label: 'Legit ✅' },
@@ -129,10 +130,19 @@ async function refreshCurrentProfile() {
   currentProfile = result.data.profile || null;
 }
 
+
+async function refreshOwnedProfileSlug() {
+  if (!getSessionAccount()) {
+    ownedProfileSlug = null;
+    return;
+  }
+  const result = await api('/api/my-profile', { method: 'GET' });
+  ownedProfileSlug = result.ok ? result.data.slug || null : null;
+}
+
 async function ensureLoggedInProfile() {
   if (!getSessionAccount() || getCurrentUser()) return;
-  const result = await api('/api/my-profile', { method: 'GET' });
-  if (result.ok && result.data.slug) setCurrentUser(result.data.slug);
+  if (ownedProfileSlug) setCurrentUser(ownedProfileSlug);
 }
 
 function renderReasonOptions(rating) {
@@ -171,13 +181,22 @@ function renderTrustPill(stats) {
 }
 
 function renderCreateProfileAccess() {
-  const disabled = !getSessionAccount();
+  const disabled = !getSessionAccount() || Boolean(ownedProfileSlug);
   createProfileBtn.disabled = disabled;
   const usernameInput = document.querySelector('#username');
   if (usernameInput) usernameInput.disabled = disabled;
-  createProfileLockMessage.textContent = disabled
-    ? 'Najpierw zaloguj się przez Discord, aby utworzyć własny link profilu.'
-    : 'Jesteś zalogowany — możesz utworzyć własny link profilu.';
+
+  if (!getSessionAccount()) {
+    createProfileLockMessage.textContent = 'Najpierw zaloguj się przez Discord, aby utworzyć własny link profilu.';
+    return;
+  }
+
+  if (ownedProfileSlug) {
+    createProfileLockMessage.textContent = `Masz już profil @${ownedProfileSlug}. Tworzenie nowego jest wyłączone dla jednego konta.`;
+    return;
+  }
+
+  createProfileLockMessage.textContent = 'Jesteś zalogowany — możesz utworzyć własny link profilu.';
 }
 
 function renderAuthUi() {
@@ -359,12 +378,21 @@ discordLoginBtn.addEventListener('click', () => {
 logoutBtn.addEventListener('click', async () => {
   await api('/auth/logout', { method: 'POST' });
   await refreshSession();
+  ownedProfileSlug = null;
   renderAuthUi();
   renderProfile();
 });
 
 createProfileForm.addEventListener('submit', async (event) => {
   event.preventDefault();
+
+  if (ownedProfileSlug) {
+    createProfileMessage.textContent = `Masz już profil @${ownedProfileSlug}.`;
+    setCurrentUser(ownedProfileSlug);
+    await syncAndRender();
+    return;
+  }
+
   const slug = slugify(new FormData(createProfileForm).get('username'));
   if (!slug || slug.length < 3) {
     createProfileMessage.textContent = 'Podaj poprawną nazwę profilu (min. 3 znaki).';
@@ -377,19 +405,37 @@ createProfileForm.addEventListener('submit', async (event) => {
   });
 
   if (!result.ok) {
-    createProfileMessage.textContent = result.data.error === 'slug_taken' ? `Nazwa @${slug} jest już zajęta.` : 'Nie udało się utworzyć profilu.';
+    if (result.data.error === 'slug_taken') {
+      createProfileMessage.textContent = `Nazwa @${slug} jest już zajęta.`;
+      return;
+    }
+    if (result.data.error === 'already_has_profile') {
+      ownedProfileSlug = result.data.slug || ownedProfileSlug;
+      createProfileMessage.textContent = `Masz już profil @${ownedProfileSlug}.`;
+      if (ownedProfileSlug) setCurrentUser(ownedProfileSlug);
+      await syncAndRender();
+      renderAuthUi();
+      return;
+    }
+    createProfileMessage.textContent = 'Nie udało się utworzyć profilu.';
     return;
   }
 
+  ownedProfileSlug = result.data.slug;
   setCurrentUser(result.data.slug);
   createProfileMessage.textContent = `Gotowe. Profil @${result.data.slug} został utworzony.`;
   await syncAndRender();
+  renderAuthUi();
 });
 
 claimProfileBtn.addEventListener('click', async () => {
   const user = getCurrentUser();
   if (!user) return;
-  await api('/api/profile/claim', { method: 'POST', body: JSON.stringify({ user }) });
+  const result = await api('/api/profile/claim', { method: 'POST', body: JSON.stringify({ user }) });
+  if (result.ok) {
+    ownedProfileSlug = user;
+    renderAuthUi();
+  }
   await syncAndRender();
 });
 
@@ -413,8 +459,10 @@ ownerSettingsForm.addEventListener('submit', async (event) => {
   }
 
   setCurrentUser(result.data.slug);
+  ownedProfileSlug = result.data.slug;
   ownerSettingsMessage.textContent = 'Zmiany zapisane.';
   await syncAndRender();
+  renderAuthUi();
 });
 
 reviewForm.addEventListener('change', (event) => {
@@ -484,6 +532,7 @@ if (yearNode) yearNode.textContent = new Date().getFullYear();
 async function boot() {
   await refreshAuthConfig();
   await refreshSession();
+  await refreshOwnedProfileSlug();
   await ensureLoggedInProfile();
   await refreshCurrentProfile();
   renderReasonOptions(null);

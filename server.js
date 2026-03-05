@@ -243,6 +243,8 @@ async function handleApi(req, res, url) {
     const body = await readJsonBody(req);
     const slug = slugify(body.slug);
     if (!isValidSlug(slug)) return json(res, 400, { error: 'invalid_slug' });
+    const ownedSlug = findOwnedProfile(user.account);
+    if (ownedSlug) return json(res, 409, { error: 'already_has_profile', slug: ownedSlug });
     if (DB.profiles[slug]) return json(res, 409, { error: 'slug_taken' });
 
     DB.profiles[slug] = {
