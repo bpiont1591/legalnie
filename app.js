@@ -261,21 +261,23 @@ function renderCreateProfileAccess() {
   const usernameInput = document.querySelector('#username');
   if (usernameInput) usernameInput.disabled = disabled;
 
-  const hideCreateForm = Boolean(ownedProfileSlug);
-  if (createProfileTitle) createProfileTitle.classList.toggle('hidden', hideCreateForm);
-  createProfileForm.classList.toggle('hidden', hideCreateForm);
+  const panelActions = document.querySelector('#appView .panel-actions');
+  const showCreateForm = Boolean(getSessionAccount()) && !ownedProfileSlug;
+  if (createProfileTitle) createProfileTitle.classList.toggle('hidden', !showCreateForm);
+  createProfileForm.classList.toggle('hidden', !showCreateForm);
+  if (panelActions) panelActions.classList.toggle('hidden', !showCreateForm);
 
   if (!getSessionAccount()) {
-    createProfileLockMessage.textContent = 'Najpierw zaloguj się przez Discord, aby utworzyć własny link profilu.';
+    createProfileLockMessage.textContent = 'Zaloguj się przez Discord, aby wystawić opinię.';
     return;
   }
 
   if (ownedProfileSlug) {
-    createProfileLockMessage.textContent = `Masz już profil @${ownedProfileSlug}. Tworzenie nowego jest wyłączone dla jednego konta.`;
+    createProfileLockMessage.textContent = `Masz już profil @${ownedProfileSlug}.`;
     return;
   }
 
-  createProfileLockMessage.textContent = 'Jesteś zalogowany — możesz utworzyć własny link profilu.';
+  createProfileLockMessage.textContent = 'Nie masz jeszcze profilu — możesz go teraz utworzyć.';
 }
 
 function renderAuthUi() {

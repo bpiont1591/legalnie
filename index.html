@@ -93,13 +93,10 @@
       <section id="appView" class="hidden">
         <div class="layout">
           <section class="card panel intro-panel">
-            <h2>Twój panel</h2>
-            <p class="muted">Tutaj tworzysz profil, zmieniasz nazwę linku i zarządzasz opiniami.</p>
+            <p id="createProfileLockMessage" class="feedback warning"></p>
 
-            <hr class="sep" />
-
-            <h3 id="createProfileTitle">Utwórz swój profil</h3>
-            <form id="createProfileForm" class="stack">
+            <h3 id="createProfileTitle" class="hidden">Utwórz swój profil</h3>
+            <form id="createProfileForm" class="stack hidden">
               <label for="username">Nazwa profilu</label>
               <input
                 id="username"
@@ -111,24 +108,8 @@
               <button type="submit" id="createProfileBtn" class="btn btn-primary">Utwórz profil</button>
             </form>
             <p id="createProfileMessage" class="feedback"></p>
-            <p id="createProfileLockMessage" class="feedback warning"></p>
-            <div class="panel-actions">
+            <div class="panel-actions hidden">
               <button id="copyProfileLink" class="btn btn-secondary" disabled>Kopiuj link profilu</button>
-            </div>
-
-            <div class="intro-points">
-              <p><strong>✔ Nazwa linku pod Twoją kontrolą</strong> — możesz ją zmienić w ustawieniach profilu.</p>
-              <p><strong>✔ Opinie i zgłoszenia</strong> w jednym miejscu.</p>
-              <p><strong>✔ Prosty workflow</strong> od logowania do gotowego profilu.</p>
-            </div>
-
-            <div class="quick-guide">
-              <h4>Plan działania w 60 sekund</h4>
-              <ol>
-                <li>Stwórz własny link profilu.</li>
-                <li>Udostępnij go kupującym.</li>
-                <li>Zbieraj opinie i buduj wiarygodność.</li>
-              </ol>
             </div>
           </section>
 
