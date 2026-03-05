@@ -12,12 +12,34 @@ const scamCount = document.querySelector('#scamCount');
 const reviewForm = document.querySelector('#reviewForm');
 const reviewsList = document.querySelector('#reviewsList');
 const copyProfileLink = document.querySelector('#copyProfileLink');
+const reasonSelect = document.querySelector('#reason');
 const yearNode = document.querySelector('#year');
 
 const ratingMeta = {
   legit: { label: 'Legit ✅' },
   sold: { label: 'Sprzedał 💼' },
   scam: { label: 'Oszukał ❌' }
+};
+
+const reasonCatalog = {
+  legit: [
+    'Szybka wysyłka',
+    'Towar zgodny z opisem',
+    'Dobry kontakt',
+    'Polecam sprzedawcę'
+  ],
+  sold: [
+    'Sprzedane bez problemu',
+    'Transakcja zakończona pomyślnie',
+    'Płatność i odbiór poprawne',
+    'Finalizacja zgodnie z ustaleniami'
+  ],
+  scam: [
+    'Brak wysyłki po płatności',
+    'Towar niezgodny z opisem',
+    'Brak kontaktu po transakcji',
+    'Podejrzenie oszustwa'
+  ]
 };
 
 function slugify(username) {
@@ -86,6 +108,18 @@ function renderTrustPill(stats) {
   }
 }
 
+function getSelectedRating() {
+  return document.querySelector('input[name="rating"]:checked')?.value;
+}
+
+function renderReasonOptions(rating) {
+  const options = reasonCatalog[rating] || [];
+  reasonSelect.innerHTML = [
+    '<option value="" selected disabled>Wybierz powód...</option>',
+    ...options.map((reason) => `<option value="${reason}">${reason}</option>`)
+  ].join('');
+}
+
 function renderReviews(reviews) {
   if (!reviews.length) {
     reviewsList.innerHTML = '<li class="review">Brak opinii dla tego profilu.</li>';
@@ -97,14 +131,14 @@ function renderReviews(reviews) {
     .reverse()
     .map((review) => {
       const date = new Date(review.createdAt).toLocaleDateString('pl-PL');
-      const comment = review.comment?.trim() ? review.comment : 'Brak komentarza.';
+      const reason = review.reason?.trim() ? review.reason : 'Brak powodu.';
       return `
         <li class="review">
           <div class="review-head">
             <span>${ratingMeta[review.rating].label}</span>
             <span>${date}</span>
           </div>
-          <p>${comment}</p>
+          <p>${reason}</p>
         </li>`;
     })
     .join('');
@@ -152,6 +186,12 @@ createProfileForm.addEventListener('submit', (event) => {
   renderProfile();
 });
 
+reviewForm.addEventListener('change', (event) => {
+  if (event.target.name === 'rating') {
+    renderReasonOptions(getSelectedRating());
+  }
+});
+
 reviewForm.addEventListener('submit', (event) => {
   event.preventDefault();
   const user = getCurrentUser();
@@ -159,17 +199,20 @@ reviewForm.addEventListener('submit', (event) => {
 
   const formData = new FormData(reviewForm);
   const rating = String(formData.get('rating'));
-  const comment = String(formData.get('comment') || '').trim();
+  const reason = String(formData.get('reason') || '').trim();
+
+  if (!rating || !reason) return;
 
   const profiles = loadProfiles();
   profiles[user].reviews.push({
     rating,
-    comment,
+    reason,
     createdAt: new Date().toISOString()
   });
 
   saveProfiles(profiles);
   reviewForm.reset();
+  renderReasonOptions(null);
   renderProfile();
 });
 
@@ -185,6 +228,7 @@ copyProfileLink.addEventListener('click', async () => {
   }
 });
 
+renderReasonOptions(null);
 renderProfile();
 
 if (yearNode) {

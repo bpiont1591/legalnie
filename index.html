@@ -88,13 +88,28 @@
 
         <form id="reviewForm" class="stack review-form">
           <h3>Wystaw opinię</h3>
-          <div class="rating-options">
-            <label><input type="radio" name="rating" value="legit" required /> Legit</label>
-            <label><input type="radio" name="rating" value="sold" /> Sprzedał</label>
-            <label><input type="radio" name="rating" value="scam" /> Oszukał</label>
+
+          <div class="rating-grid" role="radiogroup" aria-label="Typ opinii">
+            <label class="rating-card rating-legit">
+              <input type="radio" name="rating" value="legit" required />
+              <span class="title">Legit ✅</span>
+              <small>Wszystko przebiegło prawidłowo</small>
+            </label>
+            <label class="rating-card rating-sold">
+              <input type="radio" name="rating" value="sold" />
+              <span class="title">Sprzedał 💼</span>
+              <small>Transakcja zakończona sprzedażą</small>
+            </label>
+            <label class="rating-card rating-scam">
+              <input type="radio" name="rating" value="scam" />
+              <span class="title">Oszukał ❌</span>
+              <small>Zgłoszenie problemu / oszustwa</small>
+            </label>
           </div>
-          <label for="comment">Komentarz (opcjonalnie)</label>
-          <textarea id="comment" name="comment" maxlength="200" placeholder="Napisz krótko jak przebiegła transakcja..."></textarea>
+
+          <label for="reason">Powód opinii (wybierz z katalogu)</label>
+          <select id="reason" name="reason" required></select>
+
           <button type="submit" class="btn btn-primary">Dodaj opinię</button>
         </form>
 
