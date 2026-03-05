@@ -1,10 +1,6 @@
 const STORAGE_KEY = 'legitcheck_profiles_v2';
-const SESSION_KEY = 'legitcheck_session_user_v2';
 
-const runtimeConfig = window.LEGITCHECK_CONFIG || {};
-const DISCORD_CLIENT_ID = runtimeConfig.DISCORD_CLIENT_ID || '';
-const DISCORD_AUTH_URL = 'https://discord.com/oauth2/authorize';
-const DISCORD_API_ME = 'https://discord.com/api/users/@me';
+let sessionUser = null;
 
 const authMessage = document.querySelector('#authMessage');
 const logoutBtn = document.querySelector('#logoutBtn');
@@ -67,70 +63,18 @@ function saveDb(db) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
 }
 
-function getSessionUser() {
-  try {
-    return JSON.parse(localStorage.getItem(SESSION_KEY)) || null;
-  } catch {
-    return null;
-  }
-}
-
 function getSessionAccount() {
-  return getSessionUser()?.account || '';
+  return sessionUser?.account || '';
 }
 
-function setSessionUser(sessionUser) {
-  localStorage.setItem(SESSION_KEY, JSON.stringify(sessionUser));
-}
-
-function clearSessionAccount() {
-  localStorage.removeItem(SESSION_KEY);
-}
-
-function getDiscordRedirectUri() {
-  return `${window.location.origin}${window.location.pathname}`;
-}
-
-function buildDiscordAuthUrl() {
-  const params = new URLSearchParams({
-    client_id: DISCORD_CLIENT_ID,
-    redirect_uri: getDiscordRedirectUri(),
-    response_type: 'token',
-    scope: 'identify'
-  });
-  return `${DISCORD_AUTH_URL}?${params.toString()}`;
-}
-
-async function tryDiscordLoginFromHash() {
-  if (!window.location.hash.includes('access_token=')) return;
-
-  const hash = new URLSearchParams(window.location.hash.slice(1));
-  const accessToken = hash.get('access_token');
-  if (!accessToken) return;
-
+async function refreshSession() {
   try {
-    const response = await fetch(DISCORD_API_ME, {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
-    if (!response.ok) throw new Error('discord_profile_failed');
-
-    const profile = await response.json();
-    const account = slugify(`dc_${profile.id}`);
-    const display = `${profile.username}${profile.discriminator && profile.discriminator !== '0' ? `#${profile.discriminator}` : ''}`;
-
-    setSessionUser({
-      account,
-      provider: 'discord',
-      display,
-      discordId: profile.id,
-      avatar: profile.avatar || null
-    });
-    authMessage.textContent = `Zalogowano przez Discord jako ${display}`;
+    const response = await fetch('/auth/me', { credentials: 'include' });
+    const data = await response.json();
+    sessionUser = data.user || null;
   } catch {
-    authMessage.textContent = 'Nie udało się zalogować przez Discord. Sprawdź konfigurację OAuth.';
+    sessionUser = null;
   }
-
-  window.history.replaceState({}, '', window.location.pathname + window.location.search);
 }
 
 function getCurrentUser() {
@@ -193,10 +137,8 @@ function renderTrustPill(stats) {
   }
 }
 
-
 function renderCreateProfileAccess() {
-  const account = getSessionAccount();
-  const disabled = !account;
+  const disabled = !getSessionAccount();
   createProfileBtn.disabled = disabled;
   const usernameInput = document.querySelector('#username');
   if (usernameInput) usernameInput.disabled = disabled;
@@ -206,21 +148,13 @@ function renderCreateProfileAccess() {
 }
 
 function renderAuthUi() {
-  const sessionUser = getSessionUser();
-  const account = sessionUser?.account;
-  if (account) {
-    authMessage.textContent = `Zalogowano jako Discord: ${sessionUser.display || account}`;
+  if (sessionUser?.account) {
+    authMessage.textContent = `Zalogowano jako Discord: ${sessionUser.display || sessionUser.account}`;
     logoutBtn.classList.remove('hidden');
   } else {
     authMessage.textContent = 'Nie jesteś zalogowany. Użyj Discord OAuth.';
     logoutBtn.classList.add('hidden');
   }
-
-  if (!DISCORD_CLIENT_ID) {
-    discordLoginBtn.disabled = true;
-    discordLoginBtn.textContent = 'Brak DISCORD_CLIENT_ID (Cloud Secret)';
-  }
-
   renderCreateProfileAccess();
 }
 
@@ -367,15 +301,12 @@ function renderProfile() {
 }
 
 discordLoginBtn.addEventListener('click', () => {
-  if (!DISCORD_CLIENT_ID) {
-    authMessage.textContent = 'Ustaw DISCORD_CLIENT_ID przez Cloud Secret / runtime config.';
-    return;
-  }
-  window.location.href = buildDiscordAuthUrl();
+  window.location.href = '/auth/discord/start';
 });
 
-logoutBtn.addEventListener('click', () => {
-  clearSessionAccount();
+logoutBtn.addEventListener('click', async () => {
+  await fetch('/auth/logout', { method: 'POST', credentials: 'include' });
+  await refreshSession();
   renderAuthUi();
   renderProfile();
 });
@@ -542,7 +473,7 @@ copyProfileLink.addEventListener('click', async () => {
 if (yearNode) yearNode.textContent = new Date().getFullYear();
 
 async function boot() {
-  await tryDiscordLoginFromHash();
+  await refreshSession();
   renderReasonOptions(null);
   renderAuthUi();
   renderProfile();
