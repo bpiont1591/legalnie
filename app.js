@@ -1,6 +1,7 @@
 const STORAGE_KEY = 'legitcheck_profiles_v2';
 
 let sessionUser = null;
+let discordConfigured = true;
 
 const authMessage = document.querySelector('#authMessage');
 const logoutBtn = document.querySelector('#logoutBtn');
@@ -65,6 +66,35 @@ function saveDb(db) {
 
 function getSessionAccount() {
   return sessionUser?.account || '';
+}
+
+
+function readAuthErrorFromUrl() {
+  const url = new URL(window.location.href);
+  const authError = url.searchParams.get('auth_error');
+  if (!authError) return;
+
+  const authErrorMap = {
+    missing_server_oauth_config: 'Serwer OAuth nie jest skonfigurowany (DISCORD_CLIENT_ID / DISCORD_CLIENT_SECRET / SESSION_SECRET).',
+    oauth_state_mismatch: 'Błąd bezpieczeństwa OAuth (state mismatch). Spróbuj ponownie.',
+    discord_token_exchange_failed: 'Discord odrzucił wymianę kodu na token. Sprawdź Redirect URI w Discord Developer Portal.',
+    discord_profile_failed: 'Nie udało się pobrać profilu Discord.',
+    discord_denied_or_failed: 'Logowanie Discord zostało anulowane lub odrzucone.'
+  };
+
+  authMessage.textContent = authErrorMap[authError] || 'Logowanie nie powiodło się.';
+  url.searchParams.delete('auth_error');
+  window.history.replaceState({}, '', url);
+}
+
+async function refreshAuthConfig() {
+  try {
+    const response = await fetch('/auth/config', { credentials: 'include' });
+    const data = await response.json();
+    discordConfigured = Boolean(data.discordConfigured);
+  } catch {
+    discordConfigured = false;
+  }
 }
 
 async function refreshSession() {
@@ -155,6 +185,12 @@ function renderAuthUi() {
     authMessage.textContent = 'Nie jesteś zalogowany. Użyj Discord OAuth.';
     logoutBtn.classList.add('hidden');
   }
+
+  discordLoginBtn.disabled = !discordConfigured;
+  discordLoginBtn.textContent = discordConfigured
+    ? 'Zaloguj przez Discord'
+    : 'Discord OAuth nie skonfigurowany na serwerze';
+
   renderCreateProfileAccess();
 }
 
@@ -301,6 +337,10 @@ function renderProfile() {
 }
 
 discordLoginBtn.addEventListener('click', () => {
+  if (!discordConfigured) {
+    authMessage.textContent = 'Brak konfiguracji OAuth na serwerze. Ustaw sekrety i spróbuj ponownie.';
+    return;
+  }
   window.location.href = '/auth/discord/start';
 });
 
@@ -473,10 +513,12 @@ copyProfileLink.addEventListener('click', async () => {
 if (yearNode) yearNode.textContent = new Date().getFullYear();
 
 async function boot() {
+  await refreshAuthConfig();
   await refreshSession();
   renderReasonOptions(null);
   renderAuthUi();
   renderProfile();
+  readAuthErrorFromUrl();
 }
 
 boot();

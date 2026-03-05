@@ -7,6 +7,7 @@ const PORT = Number(process.env.PORT || 4173);
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || '';
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || '';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change-me-please';
+const BASE_URL = process.env.BASE_URL || '';
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -64,6 +65,7 @@ function json(res, status, data, headers = {}) {
 }
 
 function getBaseUrl(req) {
+  if (BASE_URL) return BASE_URL.replace(/\/$/, '');
   const proto = (req.headers['x-forwarded-proto'] || 'http').split(',')[0].trim();
   const host = req.headers.host;
   return `${proto}://${host}`;
@@ -73,9 +75,20 @@ function randomState() {
   return crypto.randomBytes(16).toString('hex');
 }
 
+function redirectWithError(res, req, code) {
+  const url = new URL('/', getBaseUrl(req));
+  url.searchParams.set('auth_error', code);
+  res.writeHead(302, { Location: url.toString() });
+  res.end();
+}
+
+function isDiscordConfigured() {
+  return Boolean(DISCORD_CLIENT_ID && DISCORD_CLIENT_SECRET && SESSION_SECRET && SESSION_SECRET !== 'change-me-please');
+}
+
 async function handleDiscordStart(req, res) {
-  if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET) {
-    return json(res, 500, { error: 'missing_discord_env' });
+  if (!isDiscordConfigured()) {
+    return redirectWithError(res, req, 'missing_server_oauth_config');
   }
 
   const state = randomState();
@@ -85,6 +98,7 @@ async function handleDiscordStart(req, res) {
     redirect_uri: redirectUri,
     response_type: 'code',
     scope: 'identify',
+    prompt: 'consent',
     state
   });
 
@@ -96,13 +110,17 @@ async function handleDiscordStart(req, res) {
 }
 
 async function handleDiscordCallback(req, res, url) {
+  if (url.searchParams.get('error')) {
+    return redirectWithError(res, req, 'discord_denied_or_failed');
+  }
+
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
   const cookies = parseCookies(req);
   const storedState = cookies.legitcheck_oauth_state;
 
   if (!code || !state || !storedState || state !== storedState) {
-    return send(res, 400, 'OAuth state mismatch', { 'Content-Type': 'text/plain; charset=utf-8' });
+    return redirectWithError(res, req, 'oauth_state_mismatch');
   }
 
   const redirectUri = `${getBaseUrl(req)}/auth/discord/callback`;
@@ -119,7 +137,7 @@ async function handleDiscordCallback(req, res, url) {
   });
 
   if (!tokenResp.ok) {
-    return send(res, 502, 'Discord token exchange failed', { 'Content-Type': 'text/plain; charset=utf-8' });
+    return redirectWithError(res, req, 'discord_token_exchange_failed');
   }
 
   const tokenData = await tokenResp.json();
@@ -128,7 +146,7 @@ async function handleDiscordCallback(req, res, url) {
   });
 
   if (!meResp.ok) {
-    return send(res, 502, 'Discord profile request failed', { 'Content-Type': 'text/plain; charset=utf-8' });
+    return redirectWithError(res, req, 'discord_profile_failed');
   }
 
   const me = await meResp.json();
@@ -160,6 +178,12 @@ async function serveStatic(res, urlPath) {
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', getBaseUrl(req));
+
+  if (url.pathname === '/auth/config' && req.method === 'GET') {
+    return json(res, 200, {
+      discordConfigured: isDiscordConfigured()
+    });
+  }
 
   if (url.pathname === '/auth/me' && req.method === 'GET') {
     const user = readSession(req);
