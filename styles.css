@@ -163,7 +163,9 @@ h1, h2, h3, p { margin: 0; }
   border-radius: 12px;
   padding: .62rem .75rem;
   background: linear-gradient(180deg, rgba(120, 147, 255, .12), rgba(120, 147, 255, .04));
+  margin-bottom: .7rem;
 }
+.panel-login-btn { width: 100%; margin-top: .15rem; }
 
 
 .auth-box {
@@ -280,7 +282,8 @@ input:focus, select:focus { outline: none; border-color: rgba(116, 154, 255, 0.8
   padding-bottom: .85rem;
   border-bottom: 1px solid rgba(156, 179, 255, .18);
 }
-.profile-header-actions { display: flex; align-items: center; gap: .55rem; }
+.profile-header-actions { display: flex; align-items: center; gap: .55rem; flex-wrap: wrap; justify-content: flex-end; }
+.profile-copy-btn { white-space: nowrap; }
 .admin-stats { margin: .5rem 0 .8rem; grid-template-columns: repeat(3, minmax(120px, 1fr)); }
 .tag { color: var(--muted); font-size: 0.85rem; }
 .owner-badge { margin-top: .4rem; color: #a9c1ff; font-size: .9rem; display: inline-flex; align-items: center; gap: .45rem; }

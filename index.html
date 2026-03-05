@@ -94,6 +94,7 @@
         <div class="layout">
           <section class="card panel intro-panel">
             <p id="createProfileLockMessage" class="feedback warning"></p>
+            <button id="panelDiscordLoginBtn" class="btn btn-discord discord-cta panel-login-btn" type="button">Zaloguj przez Discord</button>
 
             <h3 id="createProfileTitle" class="hidden">Utwórz swój profil</h3>
             <form id="createProfileForm" class="stack hidden">
@@ -108,9 +109,6 @@
               <button type="submit" id="createProfileBtn" class="btn btn-primary">Utwórz profil</button>
             </form>
             <p id="createProfileMessage" class="feedback"></p>
-            <div class="panel-actions hidden">
-              <button id="copyProfileLink" class="btn btn-secondary" disabled>Kopiuj link profilu</button>
-            </div>
           </section>
 
           <section id="profileSection" class="card profile hidden">
@@ -122,6 +120,7 @@
               </div>
               <div class="profile-header-actions">
                 <span id="trustLevel" class="trust-pill">Brak danych</span>
+                <button id="copyProfileLink" class="btn btn-secondary profile-copy-btn" disabled>Kopiuj link profilu</button>
                 <button id="profileDiscordLoginBtn" class="btn btn-secondary discord-cta hidden" type="button">Zaloguj przez Discord</button>
               </div>
             </div>

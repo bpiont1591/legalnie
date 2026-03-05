@@ -9,6 +9,7 @@ const authMessage = document.querySelector('#authMessage');
 const logoutBtn = document.querySelector('#logoutBtn');
 const discordLoginBtn = document.querySelector('#discordLoginBtn');
 const profileDiscordLoginBtn = document.querySelector('#profileDiscordLoginBtn');
+const panelDiscordLoginBtn = document.querySelector('#panelDiscordLoginBtn');
 
 const createProfileForm = document.querySelector('#createProfileForm');
 const createProfileMessage = document.querySelector('#createProfileMessage');
@@ -261,14 +262,13 @@ function renderCreateProfileAccess() {
   const usernameInput = document.querySelector('#username');
   if (usernameInput) usernameInput.disabled = disabled;
 
-  const panelActions = document.querySelector('#appView .panel-actions');
   const showCreateForm = Boolean(getSessionAccount()) && !ownedProfileSlug;
   if (createProfileTitle) createProfileTitle.classList.toggle('hidden', !showCreateForm);
   createProfileForm.classList.toggle('hidden', !showCreateForm);
-  if (panelActions) panelActions.classList.toggle('hidden', !showCreateForm);
+  if (panelDiscordLoginBtn) panelDiscordLoginBtn.classList.toggle('hidden', Boolean(getSessionAccount()));
 
   if (!getSessionAccount()) {
-    createProfileLockMessage.textContent = 'Zaloguj się przez Discord, aby wystawić opinię.';
+    createProfileLockMessage.textContent = '';
     return;
   }
 
@@ -531,6 +531,16 @@ discordLoginBtn.addEventListener('click', () => {
 if (profileDiscordLoginBtn) {
   profileDiscordLoginBtn.addEventListener('click', () => {
     if (!discordConfigured) return;
+    window.location.href = '/auth/discord/start';
+  });
+}
+
+if (panelDiscordLoginBtn) {
+  panelDiscordLoginBtn.addEventListener('click', () => {
+    if (!discordConfigured) {
+      authMessage.textContent = 'Brak konfiguracji OAuth na serwerze. Ustaw sekrety i spróbuj ponownie.';
+      return;
+    }
     window.location.href = '/auth/discord/start';
   });
 }
