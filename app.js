@@ -42,6 +42,7 @@ const yearNode = document.querySelector('#year');
 
 let currentProfile = null;
 let ownedProfileSlug = null;
+let profileResolved = false;
 
 const ratingMeta = {
   legit: { label: 'Legit ✅' },
@@ -137,11 +138,14 @@ async function refreshCurrentProfile() {
   const user = getCurrentUser();
   if (!user) {
     currentProfile = null;
+    profileResolved = true;
     return;
   }
 
+  profileResolved = false;
   const result = await api(`/api/profile?user=${encodeURIComponent(user)}`, { method: 'GET' });
   currentProfile = result.data.profile || null;
+  profileResolved = true;
 }
 
 
@@ -358,6 +362,14 @@ function renderReports(profile) {
 
 function renderProfile() {
   const user = getCurrentUser();
+
+  if (!profileResolved) {
+    profileSection.classList.add('hidden');
+    emptyState.classList.add('hidden');
+    copyProfileLink.disabled = true;
+    return;
+  }
+
   if (!user || !currentProfile) {
     profileSection.classList.add('hidden');
     emptyState.classList.remove('hidden');
