@@ -7,12 +7,8 @@ const appView = document.querySelector('#appView');
 
 const authMessage = document.querySelector('#authMessage');
 const logoutBtn = document.querySelector('#logoutBtn');
-const inboxToggleBtn = document.querySelector('#inboxToggleBtn');
 const discordLoginBtn = document.querySelector('#discordLoginBtn');
 const profileDiscordLoginBtn = document.querySelector('#profileDiscordLoginBtn');
-const inboxPanel = document.querySelector('#inboxPanel');
-const inboxCloseBtn = document.querySelector('#inboxCloseBtn');
-const inboxList = document.querySelector('#inboxList');
 
 const createProfileForm = document.querySelector('#createProfileForm');
 const createProfileMessage = document.querySelector('#createProfileMessage');
@@ -45,7 +41,6 @@ const adminPanel = document.querySelector('#adminPanel');
 const adminPanelMessage = document.querySelector('#adminPanelMessage');
 const adminReportsList = document.querySelector('#adminReportsList');
 const adminStatsGrid = document.querySelector('#adminStatsGrid');
-const adminMessagesList = document.querySelector('#adminMessagesList');
 
 const copyProfileLink = document.querySelector('#copyProfileLink');
 const yearNode = document.querySelector('#year');
@@ -55,8 +50,6 @@ let ownedProfileSlug = null;
 let profileResolved = false;
 let adminReports = [];
 let adminStats = null;
-let adminMessages = [];
-let inboxMessages = [];
 
 const ratingMeta = {
   legit: { label: 'Legit ✅' },
@@ -185,27 +178,14 @@ async function refreshAdminReports() {
   adminReports = result.ok ? (result.data.reports || []) : [];
 }
 
-async function refreshInbox() {
-  if (!getSessionAccount()) {
-    inboxMessages = [];
-    return;
-  }
-  const result = await api('/api/messages/inbox', { method: 'GET' });
-  inboxMessages = result.ok ? (result.data.messages || []) : [];
-}
 
 async function refreshAdminOverview() {
   if (!isAdminUser()) {
     adminStats = null;
-    adminMessages = [];
     return;
   }
-  const [statsRes, messagesRes] = await Promise.all([
-    api('/api/admin/stats', { method: 'GET' }),
-    api('/api/admin/messages', { method: 'GET' })
-  ]);
+  const statsRes = await api('/api/admin/stats', { method: 'GET' });
   adminStats = statsRes.ok ? statsRes.data.stats || null : null;
-  adminMessages = messagesRes.ok ? messagesRes.data.messages || [] : [];
 }
 
 
@@ -290,11 +270,6 @@ function renderAuthUi() {
     logoutBtn.classList.remove('hidden');
     loginView.classList.add('hidden');
     appView.classList.remove('hidden');
-    if (inboxToggleBtn) {
-      const unread = inboxMessages.filter((m) => m.toAccount === getSessionAccount()).length;
-      inboxToggleBtn.textContent = `Poczta (${unread})`;
-      inboxToggleBtn.classList.remove('hidden');
-    }
   } else {
     authMessage.textContent = 'Możesz przeglądać profile bez logowania. Zaloguj się dopiero gdy chcesz utworzyć własny profil.';
     logoutBtn.classList.add('hidden');
@@ -306,8 +281,6 @@ function renderAuthUi() {
       loginView.classList.remove('hidden');
       appView.classList.add('hidden');
     }
-    if (inboxToggleBtn) inboxToggleBtn.classList.add('hidden');
-    if (inboxPanel) inboxPanel.classList.add('hidden');
   }
 
   discordLoginBtn.disabled = !discordConfigured;
@@ -363,7 +336,7 @@ function renderOwnerPanel(profile) {
   } else {
     ownerPanelMessage.textContent = `Profil należy do ${formatAccountWithDisplay(profile.owner, ownerDisplay)}.`;
     ownerSettingsForm.classList.add('hidden');
-    ownerSettingsMessage.innerHTML = `<button class="btn btn-secondary" data-message-owner="${escapeHtml(profile.owner)}">Napisz do właściciela</button>`;
+    ownerSettingsMessage.textContent = 'Kontakt z właścicielem odbywa się poza platformą.';
   }
 }
 
@@ -454,14 +427,12 @@ function renderAdminPanel() {
   adminPanelMessage.textContent = `Otwartych zgłoszeń globalnie: ${adminReports.length}`;
 
   if (adminStatsGrid) {
-    const stats = adminStats || { profilesCount: 0, ownersCount: 0, openReportsCount: 0, blockedAccountsCount: 0, messageBlocksCount: 0, messagesCount: 0 };
+    const stats = adminStats || { profilesCount: 0, ownersCount: 0, openReportsCount: 0, blockedAccountsCount: 0 };
     adminStatsGrid.innerHTML = `
       <article class="stat"><h3>Profile</h3><p>${stats.profilesCount}</p></article>
       <article class="stat"><h3>Właściciele</h3><p>${stats.ownersCount}</p></article>
       <article class="stat"><h3>Otwarte zgłosz.</h3><p>${stats.openReportsCount}</p></article>
-      <article class="stat"><h3>Blokady kont</h3><p>${stats.blockedAccountsCount}</p></article>
-      <article class="stat"><h3>Blokady poczty</h3><p>${stats.messageBlocksCount}</p></article>
-      <article class="stat"><h3>Wiadomości</h3><p>${stats.messagesCount}</p></article>`;
+      <article class="stat"><h3>Blokady kont</h3><p>${stats.blockedAccountsCount}</p></article>`;
   }
 
   if (!adminReports.length) {
@@ -485,39 +456,6 @@ function renderAdminPanel() {
       </li>`)
     .join('');
 
-  if (adminMessagesList) {
-    adminMessagesList.innerHTML = adminMessages.length
-      ? adminMessages.slice(0, 40).map((m) => `
-        <li class="review">
-          <div class="review-head"><span>${escapeHtml(m.fromAccount)} → ${escapeHtml(m.toAccount)}</span><span>${new Date(m.createdAt).toLocaleDateString('pl-PL')}</span></div>
-          <p>${escapeHtml(m.body)}</p>
-          <button class="btn ${m.fromBlocked ? 'btn-secondary' : 'btn-report'}" data-admin-message-block="${escapeHtml(m.fromAccount)}" data-admin-message-blocked="${m.fromBlocked ? 'false' : 'true'}">${m.fromBlocked ? 'Odblokuj nadawcę' : 'Zablokuj nadawcę poczty'}</button>
-        </li>`).join('')
-      : '<li class="review">Brak wiadomości w systemie.</li>';
-  }
-}
-
-function renderInbox() {
-  if (!inboxList) return;
-  if (!getSessionAccount()) {
-    inboxList.innerHTML = '<li class="review">Zaloguj się, aby zobaczyć wiadomości.</li>';
-    return;
-  }
-  if (!inboxMessages.length) {
-    inboxList.innerHTML = '<li class="review">Brak wiadomości.</li>';
-    return;
-  }
-  inboxList.innerHTML = inboxMessages
-    .map((m) => {
-      const peer = m.fromAccount === getSessionAccount() ? m.toAccount : m.fromAccount;
-      return `
-      <li class="review">
-        <div class="review-head"><span>Rozmowa z: ${escapeHtml(peer)}</span><span>${new Date(m.createdAt).toLocaleDateString('pl-PL')}</span></div>
-        <p>${escapeHtml(m.body)}</p>
-        <button class="btn btn-secondary" data-reply-to="${escapeHtml(peer)}">Odpowiedz</button>
-      </li>`;
-    })
-    .join('');
 }
 
 function renderProfile() {
@@ -559,9 +497,7 @@ async function syncAndRender() {
   await refreshCurrentProfile();
   await refreshAdminReports();
   await refreshAdminOverview();
-  await refreshInbox();
   renderProfile();
-  renderInbox();
   renderAuthUi();
 }
 
@@ -577,19 +513,6 @@ if (profileDiscordLoginBtn) {
   profileDiscordLoginBtn.addEventListener('click', () => {
     if (!discordConfigured) return;
     window.location.href = '/auth/discord/start';
-  });
-}
-
-if (inboxToggleBtn) {
-  inboxToggleBtn.addEventListener('click', () => {
-    if (!inboxPanel) return;
-    inboxPanel.classList.toggle('hidden');
-  });
-}
-
-if (inboxCloseBtn) {
-  inboxCloseBtn.addEventListener('click', () => {
-    if (inboxPanel) inboxPanel.classList.add('hidden');
   });
 }
 
@@ -758,58 +681,6 @@ if (adminReportsList) {
   });
 }
 
-if (adminMessagesList) {
-  adminMessagesList.addEventListener('click', async (event) => {
-    const btn = event.target.closest('[data-admin-message-block]');
-    if (!btn) return;
-    const result = await api('/api/admin/message-block', {
-      method: 'POST',
-      body: JSON.stringify({ account: btn.dataset.adminMessageBlock, blocked: btn.dataset.adminMessageBlocked === 'true' })
-    });
-    if (!result.ok) {
-      adminPanelMessage.textContent = 'Nie udało się zablokować nadawcy poczty.';
-      return;
-    }
-    await syncAndRender();
-  });
-}
-
-if (inboxList) {
-  inboxList.addEventListener('click', async (event) => {
-    const btn = event.target.closest('[data-reply-to]');
-    if (!btn) return;
-    const text = window.prompt('Wpisz odpowiedź (max 500 znaków):');
-    if (!text) return;
-    const result = await api('/api/messages/send', {
-      method: 'POST',
-      body: JSON.stringify({ toAccount: btn.dataset.replyTo, text })
-    });
-    if (!result.ok) {
-      authMessage.textContent = 'Nie udało się wysłać odpowiedzi.';
-      return;
-    }
-    await syncAndRender();
-  });
-}
-
-if (ownerSettingsMessage) {
-  ownerSettingsMessage.addEventListener('click', async (event) => {
-    const btn = event.target.closest('[data-message-owner]');
-    if (!btn) return;
-    const text = window.prompt('Napisz wiadomość do właściciela profilu (max 500 znaków):');
-    if (!text) return;
-    const result = await api('/api/messages/send', {
-      method: 'POST',
-      body: JSON.stringify({ toAccount: btn.dataset.messageOwner, text })
-    });
-    if (!result.ok) {
-      ownerSettingsMessage.textContent = 'Nie udało się wysłać wiadomości.';
-      return;
-    }
-    ownerSettingsMessage.textContent = 'Wiadomość wysłana.';
-    await syncAndRender();
-  });
-}
 
 copyProfileLink.addEventListener('click', async () => {
   try {
@@ -834,11 +705,9 @@ async function boot() {
     await refreshCurrentProfile();
     await refreshAdminReports();
     await refreshAdminOverview();
-    await refreshInbox();
     renderReasonOptions(null);
     renderAuthUi();
     renderProfile();
-    renderInbox();
     readAuthErrorFromUrl();
   } finally {
     document.body.classList.remove('preboot');

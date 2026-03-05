@@ -9,13 +9,7 @@
     <meta property="og:description" content="Sprawdź, komu naprawdę warto zaufać przed transakcją." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://legalnie.pages.dev/" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="/styles.css?v=20260305r5" />
+    <link rel="stylesheet" href="/styles.css?v=20260306r1" />
   </head>
   <body class="preboot">
     <div class="background-glow glow-left"></div>
@@ -48,7 +42,6 @@
         </div>
       </div>
       <div class="topbar-actions">
-        <button id="inboxToggleBtn" class="btn btn-secondary hidden">Poczta (0)</button>
         <button id="logoutBtn" class="btn btn-secondary hidden">Wyloguj</button>
       </div>
     </header>
@@ -98,17 +91,6 @@
       </section>
 
       <section id="appView" class="hidden">
-        <section id="inboxPanel" class="card hidden inbox-panel">
-          <div class="profile-header">
-            <div>
-              <p class="tag">Poczta</p>
-              <h3>Wiadomości</h3>
-            </div>
-            <button id="inboxCloseBtn" class="btn btn-secondary" type="button">Zamknij</button>
-          </div>
-          <ul id="inboxList" class="reviews"></ul>
-        </section>
-
         <div class="layout">
           <section class="card panel intro-panel">
             <h2>Twój panel</h2>
@@ -228,8 +210,6 @@
               <p id="adminPanelMessage" class="feedback"></p>
               <div id="adminStatsGrid" class="stats-grid admin-stats"></div>
               <ul id="adminReportsList" class="reviews"></ul>
-              <h4>Najnowsze wiadomości</h4>
-              <ul id="adminMessagesList" class="reviews"></ul>
             </section>
           </section>
 
@@ -248,6 +228,6 @@
       </div>
     </footer>
 
-    <script src="/app.js?v=20260305r5"></script>
+    <script src="/app.js?v=20260306r1"></script>
   </body>
 </html>

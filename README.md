@@ -61,6 +61,13 @@ Aplikacja wyświetla `auth_error` po powrocie na stronę, aby łatwiej diagnozow
 - Po zalogowaniu przechodzisz do panelu zarządzania profilem.
 - Publiczny profil działa pod adresem: `/u/twoj_slug`.
 - Profile, opinie i zgłoszenia obsługują endpointy backendowe `/api/*` (zamiast samego localStorage).
+- System wewnętrznej poczty został usunięty (użytkownicy nie mogą pisać do właściciela przez stronę).
+
+
+## 5.1) Szybsze ładowanie frontendu
+
+- Frontend nie pobiera już zewnętrznych fontów z Google Fonts.
+- Interfejs używa lokalnej listy fontów systemowych, co zmniejsza liczbę zewnętrznych requestów przy starcie.
 
 
 ## 6) Baza danych
