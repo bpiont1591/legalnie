@@ -4,13 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>LegitCheck — Profile sprzedawców</title>
+    <meta name="description" content="LegitCheck: sprawdzaj wiarygodność sprzedawców, buduj reputację i zarządzaj profilem transakcyjnym w jednym miejscu." />
+    <meta property="og:title" content="LegitCheck — Profile sprzedawców" />
+    <meta property="og:description" content="Sprawdź, komu naprawdę warto zaufać przed transakcją." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://legalnie.pages.dev/" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/styles.css?v=20260305r3" />
+    <link rel="stylesheet" href="/styles.css?v=20260305r4" />
   </head>
   <body class="preboot">
     <div class="background-glow glow-left"></div>
@@ -99,7 +104,7 @@
 
             <hr class="sep" />
 
-            <h3>Utwórz swój profil</h3>
+            <h3 id="createProfileTitle">Utwórz swój profil</h3>
             <form id="createProfileForm" class="stack">
               <label for="username">Nazwa profilu</label>
               <input
@@ -154,10 +159,7 @@
 
             <section class="owner-panel">
               <h3>Panel właściciela profilu</h3>
-              <p id="ownerPanelMessage" class="muted">Zaloguj się i claimgnij profil.</p>
-              <div class="owner-actions">
-                <button id="claimProfileBtn" class="btn btn-secondary">Claim: To mój profil</button>
-              </div>
+              <p id="ownerPanelMessage" class="muted">Zaloguj się, aby zarządzać profilem.</p>
               <form id="ownerSettingsForm" class="stack hidden">
                 <label for="profileSlug">Nazwa linku profilu</label>
                 <input id="profileSlug" name="profileSlug" maxlength="30" pattern="[a-zA-Z0-9_-]{3,30}" placeholder="np. twoj_sklep" />
@@ -231,6 +233,6 @@
       </div>
     </footer>
 
-    <script src="/app.js?v=20260305r3"></script>
+    <script src="/app.js?v=20260305r4"></script>
   </body>
 </html>

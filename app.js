@@ -14,6 +14,7 @@ const createProfileForm = document.querySelector('#createProfileForm');
 const createProfileMessage = document.querySelector('#createProfileMessage');
 const createProfileLockMessage = document.querySelector('#createProfileLockMessage');
 const createProfileBtn = document.querySelector('#createProfileBtn');
+const createProfileTitle = document.querySelector('#createProfileTitle');
 const profileSection = document.querySelector('#profileSection');
 const emptyState = document.querySelector('#emptyState');
 const profileName = document.querySelector('#profileName');
@@ -23,7 +24,6 @@ const legitCount = document.querySelector('#legitCount');
 const soldCount = document.querySelector('#soldCount');
 const scamCount = document.querySelector('#scamCount');
 
-const claimProfileBtn = document.querySelector('#claimProfileBtn');
 const ownerPanelMessage = document.querySelector('#ownerPanelMessage');
 const ownerSettingsForm = document.querySelector('#ownerSettingsForm');
 const ownerSettingsMessage = document.querySelector('#ownerSettingsMessage');
@@ -232,6 +232,10 @@ function renderCreateProfileAccess() {
   const usernameInput = document.querySelector('#username');
   if (usernameInput) usernameInput.disabled = disabled;
 
+  const hideCreateForm = Boolean(ownedProfileSlug);
+  if (createProfileTitle) createProfileTitle.classList.toggle('hidden', hideCreateForm);
+  createProfileForm.classList.toggle('hidden', hideCreateForm);
+
   if (!getSessionAccount()) {
     createProfileLockMessage.textContent = 'Najpierw zaloguj się przez Discord, aby utworzyć własny link profilu.';
     return;
@@ -298,28 +302,24 @@ function renderOwnerPanel(profile) {
   ownerBioDisplay.textContent = profile.ownerBio ? `Opis: ${profile.ownerBio}` : '';
 
   if (!account) {
-    ownerPanelMessage.textContent = 'Zaloguj się przez Discord, aby claimować profil.';
-    claimProfileBtn.disabled = true;
+    ownerPanelMessage.textContent = 'Zaloguj się przez Discord, aby zarządzać profilem.';
     ownerSettingsForm.classList.add('hidden');
     return;
   }
 
   if (!profile.owner) {
-    ownerPanelMessage.textContent = 'Ten profil nie ma właściciela. Możesz go przypisać do swojego konta.';
-    claimProfileBtn.disabled = false;
+    ownerPanelMessage.textContent = 'Ten profil nie ma właściciela.';
     ownerSettingsForm.classList.add('hidden');
     return;
   }
 
   if (isOwner) {
     ownerPanelMessage.textContent = 'To Twój profil. Możesz zmienić nazwę linku, opis i moderować zgłoszenia.';
-    claimProfileBtn.disabled = true;
     ownerSettingsForm.classList.remove('hidden');
     ownerBioInput.value = profile.ownerBio || '';
     profileSlugInput.value = getCurrentUser();
   } else {
     ownerPanelMessage.textContent = `Profil należy do ${formatAccountWithDisplay(profile.owner, ownerDisplay)}.`;
-    claimProfileBtn.disabled = true;
     ownerSettingsForm.classList.add('hidden');
   }
 }
@@ -542,16 +542,6 @@ createProfileForm.addEventListener('submit', async (event) => {
   renderAuthUi();
 });
 
-claimProfileBtn.addEventListener('click', async () => {
-  const user = getCurrentUser();
-  if (!user) return;
-  const result = await api('/api/profile/claim', { method: 'POST', body: JSON.stringify({ user }) });
-  if (result.ok) {
-    ownedProfileSlug = user;
-    renderAuthUi();
-  }
-  await syncAndRender();
-});
 
 ownerSettingsForm.addEventListener('submit', async (event) => {
   event.preventDefault();
