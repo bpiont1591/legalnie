@@ -7,6 +7,7 @@ const appView = document.querySelector('#appView');
 const authMessage = document.querySelector('#authMessage');
 const logoutBtn = document.querySelector('#logoutBtn');
 const discordLoginBtn = document.querySelector('#discordLoginBtn');
+const profileDiscordLoginBtn = document.querySelector('#profileDiscordLoginBtn');
 
 const createProfileForm = document.querySelector('#createProfileForm');
 const createProfileMessage = document.querySelector('#createProfileMessage');
@@ -88,6 +89,15 @@ function setCurrentUser(user) {
     window.history.replaceState({}, '', `/u/${user}`);
   } else {
     window.history.replaceState({}, '', '/');
+  }
+}
+
+
+function applyInitialRouteView() {
+  const hasPublicProfileInUrl = Boolean(getCurrentUser());
+  if (hasPublicProfileInUrl) {
+    loginView.classList.add('hidden');
+    appView.classList.remove('hidden');
   }
 }
 
@@ -223,6 +233,12 @@ function renderAuthUi() {
 
   discordLoginBtn.disabled = !discordConfigured;
   discordLoginBtn.textContent = discordConfigured ? 'Zaloguj przez Discord' : 'Discord OAuth nie skonfigurowany na serwerze';
+
+  if (profileDiscordLoginBtn) {
+    profileDiscordLoginBtn.disabled = !discordConfigured;
+    profileDiscordLoginBtn.classList.toggle('hidden', isLoggedIn || !hasPublicProfileInUrl);
+    profileDiscordLoginBtn.textContent = discordConfigured ? 'Zaloguj przez Discord' : 'Discord OAuth nieaktywny';
+  }
 
   renderCreateProfileAccess();
 }
@@ -374,6 +390,13 @@ discordLoginBtn.addEventListener('click', () => {
   }
   window.location.href = '/auth/discord/start';
 });
+
+if (profileDiscordLoginBtn) {
+  profileDiscordLoginBtn.addEventListener('click', () => {
+    if (!discordConfigured) return;
+    window.location.href = '/auth/discord/start';
+  });
+}
 
 logoutBtn.addEventListener('click', async () => {
   await api('/auth/logout', { method: 'POST' });
@@ -541,4 +564,5 @@ async function boot() {
   readAuthErrorFromUrl();
 }
 
+applyInitialRouteView();
 boot();

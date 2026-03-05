@@ -182,7 +182,8 @@ input:focus, select:focus { outline: none; border-color: rgba(116, 154, 255, 0.8
 .warning { color: #ffd285; }
 
 .profile { display: flex; flex-direction: column; gap: 1rem; }
-.profile-header { display: flex; justify-content: space-between; align-items: center; }
+.profile-header { display: flex; justify-content: space-between; align-items: center; gap: .8rem; }
+.profile-header-actions { display: flex; align-items: center; gap: .55rem; }
 .tag { color: var(--muted); font-size: 0.85rem; }
 .owner-badge { margin-top: .4rem; color: #a9c1ff; font-size: .9rem; }
 .trust-pill { padding: 0.45rem 0.7rem; border-radius: 999px; font-size: 0.86rem; font-weight: 600; background: rgba(255, 255, 255, 0.13); }
@@ -228,5 +229,7 @@ code { background: rgba(255, 255, 255, 0.08); padding: 0.15rem 0.4rem; border-ra
   .layout { grid-template-columns: 1fr; }
   .panel { position: static; }
   .stats-grid, .rating-grid, .hero-grid { grid-template-columns: 1fr; }
+  .profile-header { align-items: flex-start; }
+  .profile-header-actions { width: 100%; justify-content: flex-start; }
   .topbar, .footer-inner, .topbar-actions { flex-direction: column; align-items: flex-start; }
 }
