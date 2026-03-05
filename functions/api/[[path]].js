@@ -1,1 +1,5 @@
-export { onRequest } from '../auth/[[path]].js';
+import { handleApiRequest } from '../_lib/api.js';
+
+export async function onRequest({ request, env }) {
+  return handleApiRequest(request, env);
+}

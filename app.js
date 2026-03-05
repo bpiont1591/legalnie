@@ -337,7 +337,7 @@ function renderReviews(profile, user) {
             <span>${ratingMeta[review.rating].label}</span>
             <span>${date}</span>
           </div>
-          <p>${review.reason}</p>
+          <p>${escapeHtml(review.reason)}</p>
           <small class="review-author">${review.reviewerAvatar ? `<img class="review-avatar" src="${escapeHtml(review.reviewerAvatar)}" alt="avatar" />` : ''}<span>Opinia od: @${escapeHtml(review.reviewerAccount)}${review.reviewerDisplay ? ` (${escapeHtml(review.reviewerDisplay)})` : ''}</span></small>
           ${canReport ? `<button class="btn btn-report" data-report-review="${review.id}" data-report-user="${user}">Zgłoś opinię</button>` : ''}
         </li>`;

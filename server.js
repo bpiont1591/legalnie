@@ -12,6 +12,27 @@ const DB_FILE = path.join(process.cwd(), 'data', 'profiles-db.json');
 
 let DB = { profiles: {} };
 
+
+const RATE_LIMITS = new Map();
+
+function getClientIp(req) {
+  return String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || 'unknown';
+}
+
+function isRateLimited(req, user, action, limit = 20, windowMs = 60_000) {
+  const key = `${action}:${user?.account || 'anon'}:${getClientIp(req)}`;
+  const now = Date.now();
+  const entry = RATE_LIMITS.get(key);
+  if (!entry || now > entry.resetAt) {
+    RATE_LIMITS.set(key, { count: 1, resetAt: now + windowMs });
+    return false;
+  }
+  entry.count += 1;
+  if (entry.count > limit) return true;
+  RATE_LIMITS.set(key, entry);
+  return false;
+}
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',
@@ -245,6 +266,7 @@ async function handleApi(req, res, url) {
   if (url.pathname === '/api/profile/create' && req.method === 'POST') {
     const user = requireSession(req, res);
     if (!user) return;
+    if (isRateLimited(req, user, 'profile_create', 6)) return json(res, 429, { error: 'rate_limited' });
     const body = await readJsonBody(req);
     const slug = slugify(body.slug);
     if (!isValidSlug(slug)) return json(res, 400, { error: 'invalid_slug' });
@@ -268,6 +290,7 @@ async function handleApi(req, res, url) {
   if (url.pathname === '/api/profile/claim' && req.method === 'POST') {
     const user = requireSession(req, res);
     if (!user) return;
+    if (isRateLimited(req, user, 'profile_claim', 10)) return json(res, 429, { error: 'rate_limited' });
     const body = await readJsonBody(req);
     const slug = slugify(body.user);
     if (!isValidSlug(slug)) return json(res, 400, { error: 'invalid_slug' });
@@ -284,6 +307,7 @@ async function handleApi(req, res, url) {
   if (url.pathname === '/api/profile/settings' && req.method === 'POST') {
     const user = requireSession(req, res);
     if (!user) return;
+    if (isRateLimited(req, user, 'profile_settings', 20)) return json(res, 429, { error: 'rate_limited' });
     const body = await readJsonBody(req);
     const currentSlug = slugify(body.user);
     const nextSlug = slugify(body.nextSlug);
@@ -308,6 +332,7 @@ async function handleApi(req, res, url) {
   if (url.pathname === '/api/review' && req.method === 'POST') {
     const user = requireSession(req, res);
     if (!user) return;
+    if (isRateLimited(req, user, 'review_write', 12)) return json(res, 429, { error: 'rate_limited' });
     const body = await readJsonBody(req);
     const slug = slugify(body.user);
     const rating = body.rating;
@@ -342,6 +367,7 @@ async function handleApi(req, res, url) {
   if (url.pathname === '/api/report' && req.method === 'POST') {
     const user = requireSession(req, res);
     if (!user) return;
+    if (isRateLimited(req, user, 'report_write', 12)) return json(res, 429, { error: 'rate_limited' });
     const body = await readJsonBody(req);
     const slug = slugify(body.user);
     const reviewId = String(body.reviewId || '');
@@ -366,6 +392,7 @@ async function handleApi(req, res, url) {
   if (url.pathname === '/api/report/resolve' && req.method === 'POST') {
     const user = requireSession(req, res);
     if (!user) return;
+    if (isRateLimited(req, user, 'report_resolve', 20)) return json(res, 429, { error: 'rate_limited' });
     const body = await readJsonBody(req);
     const slug = slugify(body.user);
     const reportId = String(body.reportId || '');
