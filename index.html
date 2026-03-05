@@ -13,11 +13,23 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <div class="background-glow"></div>
+    <div class="background-glow glow-left"></div>
+    <div class="background-glow glow-right"></div>
 
     <header class="topbar">
       <div class="brand">
-        <span class="brand-badge">LC</span>
+        <div class="logo-mark" aria-hidden="true">
+          <svg viewBox="0 0 64 64" role="img">
+            <defs>
+              <linearGradient id="logoGradient" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#5c8dff" />
+                <stop offset="100%" stop-color="#89a9ff" />
+              </linearGradient>
+            </defs>
+            <rect x="4" y="4" width="56" height="56" rx="16" fill="url(#logoGradient)" />
+            <path d="M20 34l8 8 16-16" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </div>
         <div>
           <h1>LegitCheck</h1>
           <p>Profesjonalny profil reputacji</p>
@@ -27,7 +39,7 @@
     </header>
 
     <main class="layout">
-      <section class="card panel">
+      <section class="card panel intro-panel">
         <h2>Utwórz swój profil</h2>
         <p class="muted">Podaj nazwę użytkownika — powstanie unikalny link do Twojego profilu.</p>
         <form id="createProfileForm" class="stack">
@@ -42,6 +54,12 @@
           <button type="submit" class="btn btn-primary">Przejdź do profilu</button>
         </form>
         <p id="createProfileMessage" class="feedback"></p>
+
+        <div class="intro-points">
+          <p><strong>✔ Transparentność:</strong> widoczne wszystkie opinie.</p>
+          <p><strong>✔ Wiarygodność:</strong> licznik reputacji i poziom zaufania.</p>
+          <p><strong>✔ Udostępnianie:</strong> każdy profil działa po własnym linku.</p>
+        </div>
       </section>
 
       <section id="profileSection" class="card profile hidden">
@@ -86,11 +104,22 @@
         </div>
       </section>
 
-      <section id="emptyState" class="card panel">
+      <section id="emptyState" class="card panel empty-state">
         <h2>Brak aktywnego profilu</h2>
         <p class="muted">Utwórz profil lub otwórz link w formacie <code>?user=nazwa</code>.</p>
       </section>
     </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        <p>© <span id="year"></span> LegitCheck. Wszystkie prawa zastrzeżone.</p>
+        <nav>
+          <a href="#">Regulamin</a>
+          <a href="#">Polityka prywatności</a>
+          <a href="#">Kontakt</a>
+        </nav>
+      </div>
+    </footer>
 
     <script src="app.js"></script>
   </body>

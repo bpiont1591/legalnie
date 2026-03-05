@@ -12,6 +12,7 @@ const scamCount = document.querySelector('#scamCount');
 const reviewForm = document.querySelector('#reviewForm');
 const reviewsList = document.querySelector('#reviewsList');
 const copyProfileLink = document.querySelector('#copyProfileLink');
+const yearNode = document.querySelector('#year');
 
 const ratingMeta = {
   legit: { label: 'Legit ✅' },
@@ -185,3 +186,7 @@ copyProfileLink.addEventListener('click', async () => {
 });
 
 renderProfile();
+
+if (yearNode) {
+  yearNode.textContent = new Date().getFullYear();
+}
