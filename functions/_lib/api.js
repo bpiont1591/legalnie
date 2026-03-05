@@ -228,7 +228,20 @@ export async function handleApiRequest(request, env) {
     const slug = slugify(url.searchParams.get('user'));
     if (!slug) return json({ profile: null });
     const profile = await getProfile(env, slug);
-    return json({ profile: profile ? sanitizeProfile(profile) : null });
+    if (!profile) return json({ profile: null });
+
+    const sessionUser = await readSession(env.SESSION_SECRET || '', request);
+    if (profile.owner && sessionUser?.account === profile.owner) {
+      const nextDisplay = sessionUser.display || '';
+      const nextAvatar = sessionUser.avatarUrl || '';
+      if ((nextDisplay && !profile.ownerDisplay) || (nextAvatar && !profile.ownerAvatar)) {
+        profile.ownerDisplay = nextDisplay || profile.ownerDisplay || '';
+        profile.ownerAvatar = nextAvatar || profile.ownerAvatar || '';
+        await saveProfile(env, slug, profile);
+      }
+    }
+
+    return json({ profile: sanitizeProfile(profile) });
   }
 
   if (pathname === '/api/profile/create' && request.method === 'POST') {

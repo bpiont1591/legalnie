@@ -261,9 +261,9 @@ function renderAuthUi() {
   renderCreateProfileAccess();
 }
 
-function formatAccountWithDisplay(account, display) {
+function formatAccountWithDisplay(account, display, fallbackDisplay = '') {
   const safeAccount = escapeHtml(account || '');
-  const safeDisplay = escapeHtml(display || '');
+  const safeDisplay = escapeHtml(display || fallbackDisplay || '');
   if (safeDisplay) return `${safeDisplay} (@${safeAccount})`;
   return `@${safeAccount}`;
 }
@@ -271,7 +271,8 @@ function formatAccountWithDisplay(account, display) {
 function renderOwnerPanel(profile) {
   const account = getSessionAccount();
   const isOwner = account && profile.owner === account;
-  const ownerLabel = formatAccountWithDisplay(profile.owner, profile.ownerDisplay);
+  const ownerDisplay = profile.ownerDisplay || ((profile.owner === account) ? (sessionUser?.display || '') : '');
+  const ownerLabel = formatAccountWithDisplay(profile.owner, ownerDisplay);
 
   ownerBadge.innerHTML = profile.owner
     ? `${profile.ownerAvatar ? `<img class="owner-avatar" src="${escapeHtml(profile.ownerAvatar)}" alt="avatar" />` : ''}<span>Właściciel: ${ownerLabel}</span>`
@@ -299,7 +300,7 @@ function renderOwnerPanel(profile) {
     ownerBioInput.value = profile.ownerBio || '';
     profileSlugInput.value = getCurrentUser();
   } else {
-    ownerPanelMessage.textContent = `Profil należy do ${formatAccountWithDisplay(profile.owner, profile.ownerDisplay)}.`;
+    ownerPanelMessage.textContent = `Profil należy do ${formatAccountWithDisplay(profile.owner, ownerDisplay)}.`;
     claimProfileBtn.disabled = true;
     ownerSettingsForm.classList.add('hidden');
   }

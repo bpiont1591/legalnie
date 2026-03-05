@@ -260,7 +260,20 @@ async function handleApi(req, res, url) {
   if (url.pathname === '/api/profile' && req.method === 'GET') {
     const slug = slugify(url.searchParams.get('user'));
     if (!slug || !DB.profiles[slug]) return json(res, 200, { profile: null });
-    return json(res, 200, { profile: sanitizeProfile(DB.profiles[slug]) });
+
+    const profile = DB.profiles[slug];
+    const sessionUser = readSession(req);
+    if (profile.owner && sessionUser?.account === profile.owner) {
+      const nextDisplay = sessionUser.display || '';
+      const nextAvatar = sessionUser.avatarUrl || '';
+      if ((nextDisplay && !profile.ownerDisplay) || (nextAvatar && !profile.ownerAvatar)) {
+        profile.ownerDisplay = nextDisplay || profile.ownerDisplay || '';
+        profile.ownerAvatar = nextAvatar || profile.ownerAvatar || '';
+        await persistDb();
+      }
+    }
+
+    return json(res, 200, { profile: sanitizeProfile(profile) });
   }
 
   if (url.pathname === '/api/profile/create' && req.method === 'POST') {
