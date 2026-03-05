@@ -9,6 +9,8 @@ const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || '';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change-me-please';
 const BASE_URL = process.env.BASE_URL || '';
 
+const DB = { profiles: {} };
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'application/javascript; charset=utf-8',
@@ -18,6 +20,18 @@ const MIME = {
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon'
 };
+
+function slugify(text) {
+  return String(text || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9_-]/g, '');
+}
+
+function isValidSlug(value) {
+  return /^[a-z0-9_-]{3,30}$/.test(value);
+}
 
 function parseCookies(req) {
   const source = req.headers.cookie || '';
@@ -86,10 +100,55 @@ function isDiscordConfigured() {
   return Boolean(DISCORD_CLIENT_ID && DISCORD_CLIENT_SECRET && SESSION_SECRET && SESSION_SECRET !== 'change-me-please');
 }
 
-async function handleDiscordStart(req, res) {
-  if (!isDiscordConfigured()) {
-    return redirectWithError(res, req, 'missing_server_oauth_config');
+function ensureProfile(slug) {
+  if (!DB.profiles[slug]) {
+    DB.profiles[slug] = {
+      owner: null,
+      ownerBio: '',
+      createdAt: new Date().toISOString(),
+      reviews: [],
+      reports: []
+    };
   }
+  return DB.profiles[slug];
+}
+
+function findOwnedProfile(account) {
+  return Object.entries(DB.profiles).find(([, profile]) => profile.owner === account)?.[0] || '';
+}
+
+function sanitizeProfile(profile) {
+  return {
+    owner: profile.owner,
+    ownerBio: profile.ownerBio,
+    createdAt: profile.createdAt,
+    reviews: profile.reviews,
+    reports: profile.reports
+  };
+}
+
+async function readJsonBody(req) {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  if (!chunks.length) return {};
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  } catch {
+    return {};
+  }
+}
+
+function requireSession(req, res) {
+  const user = readSession(req);
+  if (!user?.account) {
+    json(res, 401, { error: 'unauthorized' });
+    return null;
+  }
+  return user;
+}
+
+async function handleDiscordStart(req, res) {
+  if (!isDiscordConfigured()) return redirectWithError(res, req, 'missing_server_oauth_config');
 
   const state = randomState();
   const redirectUri = `${getBaseUrl(req)}/auth/discord/callback`;
@@ -110,18 +169,12 @@ async function handleDiscordStart(req, res) {
 }
 
 async function handleDiscordCallback(req, res, url) {
-  if (url.searchParams.get('error')) {
-    return redirectWithError(res, req, 'discord_denied_or_failed');
-  }
+  if (url.searchParams.get('error')) return redirectWithError(res, req, 'discord_denied_or_failed');
 
   const code = url.searchParams.get('code');
   const state = url.searchParams.get('state');
-  const cookies = parseCookies(req);
-  const storedState = cookies.legitcheck_oauth_state;
-
-  if (!code || !state || !storedState || state !== storedState) {
-    return redirectWithError(res, req, 'oauth_state_mismatch');
-  }
+  const storedState = parseCookies(req).legitcheck_oauth_state;
+  if (!code || !state || !storedState || state !== storedState) return redirectWithError(res, req, 'oauth_state_mismatch');
 
   const redirectUri = `${getBaseUrl(req)}/auth/discord/callback`;
   const tokenResp = await fetch('https://discord.com/api/oauth2/token', {
@@ -136,18 +189,13 @@ async function handleDiscordCallback(req, res, url) {
     })
   });
 
-  if (!tokenResp.ok) {
-    return redirectWithError(res, req, 'discord_token_exchange_failed');
-  }
+  if (!tokenResp.ok) return redirectWithError(res, req, 'discord_token_exchange_failed');
 
   const tokenData = await tokenResp.json();
   const meResp = await fetch('https://discord.com/api/users/@me', {
     headers: { Authorization: `Bearer ${tokenData.access_token}` }
   });
-
-  if (!meResp.ok) {
-    return redirectWithError(res, req, 'discord_profile_failed');
-  }
+  if (!meResp.ok) return redirectWithError(res, req, 'discord_profile_failed');
 
   const me = await meResp.json();
   const account = `dc_${me.id}`;
@@ -164,8 +212,150 @@ async function handleDiscordCallback(req, res, url) {
   res.end();
 }
 
+async function handleApi(req, res, url) {
+  if (url.pathname === '/api/my-profile' && req.method === 'GET') {
+    const user = requireSession(req, res);
+    if (!user) return;
+    return json(res, 200, { slug: findOwnedProfile(user.account) || null });
+  }
+
+  if (url.pathname === '/api/profile' && req.method === 'GET') {
+    const slug = slugify(url.searchParams.get('user'));
+    if (!slug || !DB.profiles[slug]) return json(res, 200, { profile: null });
+    return json(res, 200, { profile: sanitizeProfile(DB.profiles[slug]) });
+  }
+
+  if (url.pathname === '/api/profile/create' && req.method === 'POST') {
+    const user = requireSession(req, res);
+    if (!user) return;
+    const body = await readJsonBody(req);
+    const slug = slugify(body.slug);
+    if (!isValidSlug(slug)) return json(res, 400, { error: 'invalid_slug' });
+    if (DB.profiles[slug]) return json(res, 409, { error: 'slug_taken' });
+
+    DB.profiles[slug] = {
+      owner: user.account,
+      ownerBio: '',
+      createdAt: new Date().toISOString(),
+      reviews: [],
+      reports: []
+    };
+    return json(res, 200, { slug, profile: sanitizeProfile(DB.profiles[slug]) });
+  }
+
+  if (url.pathname === '/api/profile/claim' && req.method === 'POST') {
+    const user = requireSession(req, res);
+    if (!user) return;
+    const body = await readJsonBody(req);
+    const slug = slugify(body.user);
+    if (!isValidSlug(slug)) return json(res, 400, { error: 'invalid_slug' });
+
+    const profile = ensureProfile(slug);
+    if (profile.owner && profile.owner !== user.account) return json(res, 409, { error: 'already_owned' });
+    profile.owner = user.account;
+    return json(res, 200, { ok: true, profile: sanitizeProfile(profile) });
+  }
+
+  if (url.pathname === '/api/profile/settings' && req.method === 'POST') {
+    const user = requireSession(req, res);
+    if (!user) return;
+    const body = await readJsonBody(req);
+    const currentSlug = slugify(body.user);
+    const nextSlug = slugify(body.nextSlug);
+    const ownerBio = String(body.ownerBio || '').trim().slice(0, 80);
+
+    if (!isValidSlug(currentSlug) || !isValidSlug(nextSlug)) return json(res, 400, { error: 'invalid_slug' });
+    const profile = DB.profiles[currentSlug];
+    if (!profile) return json(res, 404, { error: 'profile_not_found' });
+    if (profile.owner !== user.account) return json(res, 403, { error: 'forbidden' });
+    if (nextSlug !== currentSlug && DB.profiles[nextSlug]) return json(res, 409, { error: 'slug_taken' });
+
+    profile.ownerBio = ownerBio;
+    if (nextSlug !== currentSlug) {
+      DB.profiles[nextSlug] = profile;
+      delete DB.profiles[currentSlug];
+    }
+
+    return json(res, 200, { slug: nextSlug, profile: sanitizeProfile(profile) });
+  }
+
+  if (url.pathname === '/api/review' && req.method === 'POST') {
+    const user = requireSession(req, res);
+    if (!user) return;
+    const body = await readJsonBody(req);
+    const slug = slugify(body.user);
+    const rating = body.rating;
+    const reason = String(body.reason || '').trim().slice(0, 140);
+    if (!isValidSlug(slug) || !['legit', 'sold', 'scam'].includes(rating) || !reason) return json(res, 400, { error: 'invalid_input' });
+
+    const profile = ensureProfile(slug);
+    if (profile.owner === user.account) return json(res, 409, { error: 'self_review_blocked' });
+
+    const existing = profile.reviews.find((r) => r.reviewerAccount === user.account);
+    if (existing) {
+      existing.rating = rating;
+      existing.reason = reason;
+      existing.updatedAt = new Date().toISOString();
+    } else {
+      profile.reviews.push({
+        id: `rvw_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
+        rating,
+        reason,
+        reviewerAccount: user.account,
+        createdAt: new Date().toISOString()
+      });
+    }
+
+    return json(res, 200, { ok: true, profile: sanitizeProfile(profile) });
+  }
+
+  if (url.pathname === '/api/report' && req.method === 'POST') {
+    const user = requireSession(req, res);
+    if (!user) return;
+    const body = await readJsonBody(req);
+    const slug = slugify(body.user);
+    const reviewId = String(body.reviewId || '');
+    if (!isValidSlug(slug) || !reviewId) return json(res, 400, { error: 'invalid_input' });
+
+    const profile = ensureProfile(slug);
+    const already = profile.reports.find((r) => r.reviewId === reviewId && r.reportedBy === user.account && r.status === 'open');
+    if (!already) {
+      profile.reports.push({
+        id: `rep_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
+        reviewId,
+        reportedBy: user.account,
+        status: 'open',
+        createdAt: new Date().toISOString()
+      });
+    }
+
+    return json(res, 200, { ok: true, profile: sanitizeProfile(profile) });
+  }
+
+  if (url.pathname === '/api/report/resolve' && req.method === 'POST') {
+    const user = requireSession(req, res);
+    if (!user) return;
+    const body = await readJsonBody(req);
+    const slug = slugify(body.user);
+    const reportId = String(body.reportId || '');
+    if (!isValidSlug(slug) || !reportId) return json(res, 400, { error: 'invalid_input' });
+
+    const profile = ensureProfile(slug);
+    if (profile.owner !== user.account) return json(res, 403, { error: 'forbidden' });
+    const report = profile.reports.find((r) => r.id === reportId);
+    if (report) {
+      report.status = 'resolved';
+      report.resolvedAt = new Date().toISOString();
+    }
+
+    return json(res, 200, { ok: true, profile: sanitizeProfile(profile) });
+  }
+
+  return false;
+}
+
 async function serveStatic(res, urlPath) {
-  const safePath = urlPath === '/' ? '/index.html' : urlPath;
+  const safePath = urlPath === '/' || urlPath.startsWith('/u/') ? '/index.html' : urlPath;
   const filePath = path.join(process.cwd(), safePath);
   try {
     const body = await readFile(filePath);
@@ -179,33 +369,25 @@ async function serveStatic(res, urlPath) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', getBaseUrl(req));
 
+  if (url.pathname.startsWith('/api/')) {
+    const handled = await handleApi(req, res, url);
+    if (handled !== false) return;
+  }
+
   if (url.pathname === '/auth/config' && req.method === 'GET') {
-    return json(res, 200, {
-      discordConfigured: isDiscordConfigured()
-    });
+    return json(res, 200, { discordConfigured: isDiscordConfigured() });
   }
 
   if (url.pathname === '/auth/me' && req.method === 'GET') {
-    const user = readSession(req);
-    return json(res, 200, { user });
+    return json(res, 200, { user: readSession(req) });
   }
 
   if (url.pathname === '/auth/logout' && req.method === 'POST') {
-    return json(
-      res,
-      200,
-      { ok: true },
-      { 'Set-Cookie': 'legitcheck_session=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax' }
-    );
+    return json(res, 200, { ok: true }, { 'Set-Cookie': 'legitcheck_session=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax' });
   }
 
-  if (url.pathname === '/auth/discord/start' && req.method === 'GET') {
-    return handleDiscordStart(req, res);
-  }
-
-  if (url.pathname === '/auth/discord/callback' && req.method === 'GET') {
-    return handleDiscordCallback(req, res, url);
-  }
+  if (url.pathname === '/auth/discord/start' && req.method === 'GET') return handleDiscordStart(req, res);
+  if (url.pathname === '/auth/discord/callback' && req.method === 'GET') return handleDiscordCallback(req, res, url);
 
   return serveStatic(res, url.pathname);
 });

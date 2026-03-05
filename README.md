@@ -50,3 +50,11 @@ Najczęstsze przyczyny:
 - OAuth ustawiony tylko w Preview, a testujesz Production
 
 Aplikacja wyświetla `auth_error` po powrocie na stronę, aby łatwiej diagnozować problem.
+
+
+## 5) Nowy flow aplikacji
+
+- Strona główna służy jako landing + logowanie Discord.
+- Po zalogowaniu przechodzisz do panelu zarządzania profilem.
+- Publiczny profil działa pod adresem: `/u/twoj_slug`.
+- Profile, opinie i zgłoszenia obsługują endpointy backendowe `/api/*` (zamiast samego localStorage).

@@ -1,5 +1,3 @@
-const STORAGE_KEY = 'legitcheck_profiles_v2';
-
 let sessionUser = null;
 let discordConfigured = true;
 
@@ -41,6 +39,8 @@ const reportsList = document.querySelector('#reportsList');
 const copyProfileLink = document.querySelector('#copyProfileLink');
 const yearNode = document.querySelector('#year');
 
+let currentProfile = null;
+
 const ratingMeta = {
   legit: { label: 'Legit ✅' },
   sold: { label: 'Sprzedał 💼' },
@@ -54,23 +54,40 @@ const reasonCatalog = {
 };
 
 function slugify(text) {
-  return String(text).trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '');
+  return String(text || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9_-]/g, '');
 }
 
-function loadDb() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || { profiles: {} };
-  } catch {
-    return { profiles: {} };
-  }
-}
-
-function saveDb(db) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+async function api(path, options = {}) {
+  const res = await fetch(path, {
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+    ...options
+  });
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok, status: res.status, data };
 }
 
 function getSessionAccount() {
   return sessionUser?.account || '';
+}
+
+function getCurrentUser() {
+  const pathMatch = window.location.pathname.match(/^\/u\/([a-zA-Z0-9_-]{3,30})$/);
+  if (pathMatch) return slugify(pathMatch[1]);
+  const params = new URLSearchParams(window.location.search);
+  return slugify(params.get('user') || '');
+}
+
+function setCurrentUser(user) {
+  if (user) {
+    window.history.replaceState({}, '', `/u/${user}`);
+  } else {
+    window.history.replaceState({}, '', '/');
+  }
 }
 
 function readAuthErrorFromUrl() {
@@ -92,67 +109,35 @@ function readAuthErrorFromUrl() {
 }
 
 async function refreshAuthConfig() {
-  try {
-    const response = await fetch('/auth/config', { credentials: 'include' });
-    const data = await response.json();
-    discordConfigured = Boolean(data.discordConfigured);
-  } catch {
-    discordConfigured = false;
-  }
+  const result = await api('/auth/config', { method: 'GET' });
+  discordConfigured = Boolean(result.data.discordConfigured);
 }
 
 async function refreshSession() {
-  try {
-    const response = await fetch('/auth/me', { credentials: 'include' });
-    const data = await response.json();
-    sessionUser = data.user || null;
-  } catch {
-    sessionUser = null;
+  const result = await api('/auth/me', { method: 'GET' });
+  sessionUser = result.data.user || null;
+}
+
+async function refreshCurrentProfile() {
+  const user = getCurrentUser();
+  if (!user) {
+    currentProfile = null;
+    return;
   }
+
+  const result = await api(`/api/profile?user=${encodeURIComponent(user)}`, { method: 'GET' });
+  currentProfile = result.data.profile || null;
 }
 
-function getCurrentUser() {
-  const params = new URLSearchParams(window.location.search);
-  return slugify(params.get('user') || '');
+async function ensureLoggedInProfile() {
+  if (!getSessionAccount() || getCurrentUser()) return;
+  const result = await api('/api/my-profile', { method: 'GET' });
+  if (result.ok && result.data.slug) setCurrentUser(result.data.slug);
 }
 
-function setCurrentUser(user) {
-  const url = new URL(window.location.href);
-  if (user) {
-    url.searchParams.set('user', user);
-  } else {
-    url.searchParams.delete('user');
-  }
-  window.history.replaceState({}, '', url);
-}
-
-function findOwnedProfile(account) {
-  if (!account) return '';
-  const db = loadDb();
-  return Object.entries(db.profiles).find(([, profile]) => profile.owner === account)?.[0] || '';
-}
-
-function ensureLoggedInProfile() {
-  const account = getSessionAccount();
-  if (!account) return;
-  if (getCurrentUser()) return;
-
-  const ownedProfile = findOwnedProfile(account);
-  if (ownedProfile) setCurrentUser(ownedProfile);
-}
-
-function ensureProfile(user) {
-  const db = loadDb();
-  if (!db.profiles[user]) {
-    db.profiles[user] = {
-      owner: null,
-      ownerBio: '',
-      createdAt: new Date().toISOString(),
-      reviews: [],
-      reports: []
-    };
-    saveDb(db);
-  }
+function renderReasonOptions(rating) {
+  const options = reasonCatalog[rating] || [];
+  reasonSelect.innerHTML = ['<option value="" selected disabled>Wybierz powód...</option>', ...options.map((r) => `<option value="${r}">${r}</option>`)].join('');
 }
 
 function computeStats(reviews) {
@@ -165,11 +150,6 @@ function computeStats(reviews) {
   );
 }
 
-function renderReasonOptions(rating) {
-  const options = reasonCatalog[rating] || [];
-  reasonSelect.innerHTML = ['<option value="" selected disabled>Wybierz powód...</option>', ...options.map((r) => `<option value="${r}">${r}</option>`)].join('');
-}
-
 function renderTrustPill(stats) {
   const total = stats.legit + stats.sold + stats.scam;
   if (!total) {
@@ -177,7 +157,6 @@ function renderTrustPill(stats) {
     trustLevel.style.background = 'rgba(255,255,255,.13)';
     return;
   }
-
   const trustScore = Math.round(((stats.legit + stats.sold) / total) * 100);
   if (trustScore >= 85) {
     trustLevel.textContent = `Wysokie zaufanie · ${trustScore}%`;
@@ -202,7 +181,7 @@ function renderCreateProfileAccess() {
 }
 
 function renderAuthUi() {
-  const isLoggedIn = Boolean(sessionUser?.account);
+  const isLoggedIn = Boolean(getSessionAccount());
   if (isLoggedIn) {
     authMessage.textContent = `Zalogowano jako Discord: ${sessionUser.display || sessionUser.account}`;
     logoutBtn.classList.remove('hidden');
@@ -217,9 +196,7 @@ function renderAuthUi() {
   }
 
   discordLoginBtn.disabled = !discordConfigured;
-  discordLoginBtn.textContent = discordConfigured
-    ? 'Zaloguj przez Discord'
-    : 'Discord OAuth nie skonfigurowany na serwerze';
+  discordLoginBtn.textContent = discordConfigured ? 'Zaloguj przez Discord' : 'Discord OAuth nie skonfigurowany na serwerze';
 
   renderCreateProfileAccess();
 }
@@ -230,7 +207,6 @@ function renderOwnerPanel(profile) {
 
   ownerBadge.textContent = profile.owner ? `Właściciel: @${profile.owner}` : 'Właściciel: nieustawiony';
   ownerBioDisplay.textContent = profile.ownerBio ? `Opis: ${profile.ownerBio}` : '';
-  ownerSettingsMessage.textContent = '';
 
   if (!account) {
     ownerPanelMessage.textContent = 'Zaloguj się przez Discord, aby claimować profil.';
@@ -274,14 +250,10 @@ function renderReviewPermission(profile) {
   }
 
   const existing = profile.reviews.find((r) => r.reviewerAccount === account);
-  if (existing) {
-    submitReviewButton.disabled = false;
-    reviewLimitMessage.textContent = 'Masz już opinię dla tego profilu — wysłanie formularza zaktualizuje Twoją opinię.';
-    return;
-  }
-
   submitReviewButton.disabled = false;
-  reviewLimitMessage.textContent = 'Możesz dodać 1 opinię dla tego profilu.';
+  reviewLimitMessage.textContent = existing
+    ? 'Masz już opinię dla tego profilu — wysłanie formularza zaktualizuje Twoją opinię.'
+    : 'Możesz dodać 1 opinię dla tego profilu.';
 }
 
 function renderReviews(profile, user) {
@@ -347,32 +319,33 @@ function renderProfile() {
   }
 
   const user = getCurrentUser();
-  if (!user) {
+  if (!user || !currentProfile) {
     profileSection.classList.add('hidden');
     emptyState.classList.remove('hidden');
     copyProfileLink.disabled = true;
     return;
   }
 
-  ensureProfile(user);
-  const db = loadDb();
-  const profile = db.profiles[user];
-  const stats = computeStats(profile.reviews);
-
+  const stats = computeStats(currentProfile.reviews);
   profileName.textContent = `@${user}`;
   legitCount.textContent = stats.legit;
   soldCount.textContent = stats.sold;
   scamCount.textContent = stats.scam;
 
   renderTrustPill(stats);
-  renderOwnerPanel(profile);
-  renderReviewPermission(profile);
-  renderReviews(profile, user);
-  renderReports(profile);
+  renderOwnerPanel(currentProfile);
+  renderReviewPermission(currentProfile);
+  renderReviews(currentProfile, user);
+  renderReports(currentProfile);
 
   profileSection.classList.remove('hidden');
   emptyState.classList.add('hidden');
   copyProfileLink.disabled = false;
+}
+
+async function syncAndRender() {
+  await refreshCurrentProfile();
+  renderProfile();
 }
 
 discordLoginBtn.addEventListener('click', () => {
@@ -384,187 +357,114 @@ discordLoginBtn.addEventListener('click', () => {
 });
 
 logoutBtn.addEventListener('click', async () => {
-  await fetch('/auth/logout', { method: 'POST', credentials: 'include' });
+  await api('/auth/logout', { method: 'POST' });
   await refreshSession();
   renderAuthUi();
   renderProfile();
 });
 
-createProfileForm.addEventListener('submit', (event) => {
+createProfileForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  const user = slugify(new FormData(createProfileForm).get('username'));
-  if (!getSessionAccount()) {
-    createProfileMessage.textContent = 'Zaloguj się przez Discord, aby utworzyć profil.';
-    return;
-  }
-
-  if (!user || user.length < 3) {
+  const slug = slugify(new FormData(createProfileForm).get('username'));
+  if (!slug || slug.length < 3) {
     createProfileMessage.textContent = 'Podaj poprawną nazwę profilu (min. 3 znaki).';
     return;
   }
 
-  const db = loadDb();
-  if (db.profiles[user]) {
-    createProfileMessage.textContent = `Profil @${user} już istnieje — otwarto istniejący profil.`;
-    setCurrentUser(user);
-    renderProfile();
+  const result = await api('/api/profile/create', {
+    method: 'POST',
+    body: JSON.stringify({ slug })
+  });
+
+  if (!result.ok) {
+    createProfileMessage.textContent = result.data.error === 'slug_taken' ? `Nazwa @${slug} jest już zajęta.` : 'Nie udało się utworzyć profilu.';
     return;
   }
 
-  db.profiles[user] = {
-    owner: getSessionAccount(),
-    ownerBio: '',
-    createdAt: new Date().toISOString(),
-    reviews: [],
-    reports: []
-  };
-  saveDb(db);
-  setCurrentUser(user);
-  createProfileMessage.textContent = `Gotowe. Profil @${user} został utworzony i przypisany do Ciebie.`;
-  renderProfile();
+  setCurrentUser(result.data.slug);
+  createProfileMessage.textContent = `Gotowe. Profil @${result.data.slug} został utworzony.`;
+  await syncAndRender();
 });
 
-claimProfileBtn.addEventListener('click', () => {
+claimProfileBtn.addEventListener('click', async () => {
   const user = getCurrentUser();
-  const account = getSessionAccount();
-  if (!user || !account) return;
-
-  const db = loadDb();
-  const profile = db.profiles[user];
-  if (!profile.owner) {
-    profile.owner = account;
-    saveDb(db);
-  }
-
-  renderProfile();
+  if (!user) return;
+  await api('/api/profile/claim', { method: 'POST', body: JSON.stringify({ user }) });
+  await syncAndRender();
 });
 
-ownerSettingsForm.addEventListener('submit', (event) => {
+ownerSettingsForm.addEventListener('submit', async (event) => {
   event.preventDefault();
-  const currentUser = getCurrentUser();
-  const account = getSessionAccount();
-  if (!currentUser || !account) return;
+  const user = getCurrentUser();
+  if (!user) return;
 
   const formData = new FormData(ownerSettingsForm);
   const nextSlug = slugify(formData.get('profileSlug'));
-  const nextBio = String(formData.get('ownerBio') || '').trim();
+  const ownerBio = String(formData.get('ownerBio') || '').trim();
 
-  const db = loadDb();
-  const profile = db.profiles[currentUser];
-  if (profile.owner !== account) return;
+  const result = await api('/api/profile/settings', {
+    method: 'POST',
+    body: JSON.stringify({ user, nextSlug, ownerBio })
+  });
 
-  if (!nextSlug || nextSlug.length < 3) {
-    ownerSettingsMessage.textContent = 'Nazwa linku musi mieć minimum 3 znaki.';
+  if (!result.ok) {
+    ownerSettingsMessage.textContent = result.data.error === 'slug_taken' ? `Nazwa @${nextSlug} jest już zajęta.` : 'Nie udało się zapisać zmian.';
     return;
   }
 
-  if (nextSlug !== currentUser && db.profiles[nextSlug]) {
-    ownerSettingsMessage.textContent = `Nazwa @${nextSlug} jest już zajęta.`;
-    return;
-  }
-
-  profile.ownerBio = nextBio;
-
-  if (nextSlug !== currentUser) {
-    db.profiles[nextSlug] = profile;
-    delete db.profiles[currentUser];
-    setCurrentUser(nextSlug);
-    ownerSettingsMessage.textContent = `Zapisano. Nowy link profilu to @${nextSlug}.`;
-  } else {
-    ownerSettingsMessage.textContent = 'Zmiany zapisane.';
-  }
-
-  saveDb(db);
-  renderProfile();
+  setCurrentUser(result.data.slug);
+  ownerSettingsMessage.textContent = 'Zmiany zapisane.';
+  await syncAndRender();
 });
 
 reviewForm.addEventListener('change', (event) => {
   if (event.target.name === 'rating') renderReasonOptions(event.target.value);
 });
 
-reviewForm.addEventListener('submit', (event) => {
+reviewForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   const user = getCurrentUser();
-  const account = getSessionAccount();
-  if (!user || !account) return;
+  if (!user) return;
 
   const formData = new FormData(reviewForm);
   const rating = String(formData.get('rating'));
   const reason = String(formData.get('reason') || '').trim();
   if (!rating || !reason) return;
 
-  const db = loadDb();
-  const profile = db.profiles[user];
-  if (profile.owner === account) {
-    reviewLimitMessage.textContent = 'Nie możesz ocenić własnego profilu.';
+  const result = await api('/api/review', {
+    method: 'POST',
+    body: JSON.stringify({ user, rating, reason })
+  });
+
+  if (!result.ok) {
+    reviewLimitMessage.textContent = 'Nie udało się dodać opinii.';
     return;
   }
 
-  const existing = profile.reviews.find((review) => review.reviewerAccount === account);
-  if (existing) {
-    existing.rating = rating;
-    existing.reason = reason;
-    existing.updatedAt = new Date().toISOString();
-  } else {
-    profile.reviews.push({
-      id: `rvw_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
-      rating,
-      reason,
-      reviewerAccount: account,
-      createdAt: new Date().toISOString()
-    });
-  }
-
-  saveDb(db);
   reviewForm.reset();
   renderReasonOptions(null);
-  renderProfile();
+  await syncAndRender();
 });
 
-reviewsList.addEventListener('click', (event) => {
+reviewsList.addEventListener('click', async (event) => {
   const button = event.target.closest('[data-report-review]');
   if (!button) return;
-
-  const user = button.dataset.reportUser;
-  const reviewId = button.dataset.reportReview;
-  const account = getSessionAccount();
-  if (!user || !reviewId || !account) return;
-
-  const db = loadDb();
-  const profile = db.profiles[user];
-  const already = profile.reports.find((r) => r.reviewId === reviewId && r.reportedBy === account && r.status === 'open');
-  if (already) return;
-
-  profile.reports.push({
-    id: `rep_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
-    reviewId,
-    reportedBy: account,
-    status: 'open',
-    createdAt: new Date().toISOString()
+  await api('/api/report', {
+    method: 'POST',
+    body: JSON.stringify({ user: button.dataset.reportUser, reviewId: button.dataset.reportReview })
   });
-  saveDb(db);
-  renderProfile();
+  await syncAndRender();
 });
 
-reportsList.addEventListener('click', (event) => {
+reportsList.addEventListener('click', async (event) => {
   const btn = event.target.closest('[data-resolve-report]');
   if (!btn) return;
 
-  const user = getCurrentUser();
-  const account = getSessionAccount();
-  if (!user || !account) return;
-
-  const db = loadDb();
-  const profile = db.profiles[user];
-  if (profile.owner !== account) return;
-
-  const report = profile.reports.find((r) => r.id === btn.dataset.resolveReport);
-  if (!report) return;
-
-  report.status = 'resolved';
-  report.resolvedAt = new Date().toISOString();
-  saveDb(db);
-  renderProfile();
+  await api('/api/report/resolve', {
+    method: 'POST',
+    body: JSON.stringify({ user: getCurrentUser(), reportId: btn.dataset.resolveReport })
+  });
+  await syncAndRender();
 });
 
 copyProfileLink.addEventListener('click', async () => {
@@ -584,7 +484,8 @@ if (yearNode) yearNode.textContent = new Date().getFullYear();
 async function boot() {
   await refreshAuthConfig();
   await refreshSession();
-  ensureLoggedInProfile();
+  await ensureLoggedInProfile();
+  await refreshCurrentProfile();
   renderReasonOptions(null);
   renderAuthUi();
   renderProfile();
