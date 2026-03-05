@@ -201,17 +201,24 @@ function renderCreateProfileAccess() {
 
 function renderAuthUi() {
   const isLoggedIn = Boolean(getSessionAccount());
+  const hasPublicProfileInUrl = Boolean(getCurrentUser());
+
   if (isLoggedIn) {
     authMessage.textContent = `Zalogowano jako Discord: ${sessionUser.display || sessionUser.account}`;
     logoutBtn.classList.remove('hidden');
     loginView.classList.add('hidden');
     appView.classList.remove('hidden');
   } else {
-    authMessage.textContent = 'Zaloguj się, aby wejść do panelu.';
+    authMessage.textContent = 'Możesz przeglądać profile bez logowania. Zaloguj się dopiero gdy chcesz utworzyć własny profil.';
     logoutBtn.classList.add('hidden');
-    loginView.classList.remove('hidden');
-    appView.classList.add('hidden');
-    setCurrentUser('');
+
+    if (hasPublicProfileInUrl) {
+      loginView.classList.add('hidden');
+      appView.classList.remove('hidden');
+    } else {
+      loginView.classList.remove('hidden');
+      appView.classList.add('hidden');
+    }
   }
 
   discordLoginBtn.disabled = !discordConfigured;
@@ -330,13 +337,6 @@ function renderReports(profile) {
 }
 
 function renderProfile() {
-  if (!getSessionAccount()) {
-    profileSection.classList.add('hidden');
-    emptyState.classList.add('hidden');
-    copyProfileLink.disabled = true;
-    return;
-  }
-
   const user = getCurrentUser();
   if (!user || !currentProfile) {
     profileSection.classList.add('hidden');
