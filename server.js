@@ -116,6 +116,8 @@ function ensureProfile(slug) {
   if (!DB.profiles[slug]) {
     DB.profiles[slug] = {
       owner: null,
+      ownerDisplay: '',
+      ownerAvatar: '',
       ownerBio: '',
       createdAt: new Date().toISOString(),
       reviews: [],
@@ -132,6 +134,8 @@ function findOwnedProfile(account) {
 function sanitizeProfile(profile) {
   return {
     owner: profile.owner,
+    ownerDisplay: profile.ownerDisplay || '',
+    ownerAvatar: profile.ownerAvatar || '',
     ownerBio: profile.ownerBio,
     createdAt: profile.createdAt,
     reviews: profile.reviews,
@@ -212,7 +216,8 @@ async function handleDiscordCallback(req, res, url) {
   const me = await meResp.json();
   const account = `dc_${me.id}`;
   const display = `${me.username}${me.discriminator && me.discriminator !== '0' ? `#${me.discriminator}` : ''}`;
-  const session = serializeSession({ account, display, provider: 'discord', discordId: me.id });
+  const avatarUrl = me.avatar ? `https://cdn.discordapp.com/avatars/${me.id}/${me.avatar}.png?size=128` : '';
+  const session = serializeSession({ account, display, avatarUrl, provider: 'discord', discordId: me.id });
 
   res.writeHead(302, {
     Location: '/',
@@ -249,6 +254,8 @@ async function handleApi(req, res, url) {
 
     DB.profiles[slug] = {
       owner: user.account,
+      ownerDisplay: user.display || '',
+      ownerAvatar: user.avatarUrl || '',
       ownerBio: '',
       createdAt: new Date().toISOString(),
       reviews: [],
@@ -268,6 +275,8 @@ async function handleApi(req, res, url) {
     const profile = ensureProfile(slug);
     if (profile.owner && profile.owner !== user.account) return json(res, 409, { error: 'already_owned' });
     profile.owner = user.account;
+    profile.ownerDisplay = user.display || profile.ownerDisplay || '';
+    profile.ownerAvatar = user.avatarUrl || profile.ownerAvatar || '';
     await persistDb();
     return json(res, 200, { ok: true, profile: sanitizeProfile(profile) });
   }
@@ -312,6 +321,8 @@ async function handleApi(req, res, url) {
     if (existing) {
       existing.rating = rating;
       existing.reason = reason;
+      existing.reviewerDisplay = user.display || existing.reviewerDisplay || '';
+      existing.reviewerAvatar = user.avatarUrl || existing.reviewerAvatar || '';
       existing.updatedAt = new Date().toISOString();
     } else {
       profile.reviews.push({
@@ -319,6 +330,8 @@ async function handleApi(req, res, url) {
         rating,
         reason,
         reviewerAccount: user.account,
+        reviewerDisplay: user.display || '',
+        reviewerAvatar: user.avatarUrl || '',
         createdAt: new Date().toISOString()
       });
     }

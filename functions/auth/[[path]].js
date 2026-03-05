@@ -36,6 +36,8 @@ async function ensureSchema(env) {
     env.DB.prepare(`CREATE TABLE IF NOT EXISTS profiles (
       slug TEXT PRIMARY KEY,
       owner TEXT,
+      owner_display TEXT NOT NULL DEFAULT '',
+      owner_avatar TEXT NOT NULL DEFAULT '',
       owner_bio TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL
     )`),
@@ -45,6 +47,8 @@ async function ensureSchema(env) {
       rating TEXT NOT NULL,
       reason TEXT NOT NULL,
       reviewer_account TEXT NOT NULL,
+      reviewer_display TEXT NOT NULL DEFAULT '',
+      reviewer_avatar TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL,
       updated_at TEXT
     )`),
@@ -58,19 +62,36 @@ async function ensureSchema(env) {
       resolved_at TEXT
     )`)
   ]);
+
+  const alterStatements = [
+    "ALTER TABLE profiles ADD COLUMN owner_display TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE profiles ADD COLUMN owner_avatar TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE reviews ADD COLUMN reviewer_display TEXT NOT NULL DEFAULT ''",
+    "ALTER TABLE reviews ADD COLUMN reviewer_avatar TEXT NOT NULL DEFAULT ''"
+  ];
+
+  for (const stmt of alterStatements) {
+    try {
+      await env.DB.prepare(stmt).run();
+    } catch {
+      // column may already exist
+    }
+  }
 }
 
 async function getProfile(env, slug) {
   if (!env.DB) return MEM_DB.profiles[slug] || null;
-  const p = await env.DB.prepare('SELECT slug, owner, owner_bio, created_at FROM profiles WHERE slug = ?').bind(slug).first();
+  const p = await env.DB.prepare('SELECT slug, owner, owner_display, owner_avatar, owner_bio, created_at FROM profiles WHERE slug = ?').bind(slug).first();
   if (!p) return null;
-  const reviews = (await env.DB.prepare('SELECT id, rating, reason, reviewer_account, created_at, updated_at FROM reviews WHERE profile_slug = ?').bind(slug).all()).results;
+  const reviews = (await env.DB.prepare('SELECT id, rating, reason, reviewer_account, reviewer_display, reviewer_avatar, created_at, updated_at FROM reviews WHERE profile_slug = ?').bind(slug).all()).results;
   const reports = (await env.DB.prepare('SELECT id, review_id, reported_by, status, created_at, resolved_at FROM reports WHERE profile_slug = ?').bind(slug).all()).results;
   return {
     owner: p.owner,
+    ownerDisplay: p.owner_display || '',
+    ownerAvatar: p.owner_avatar || '',
     ownerBio: p.owner_bio,
     createdAt: p.created_at,
-    reviews: reviews.map((r) => ({ id: r.id, rating: r.rating, reason: r.reason, reviewerAccount: r.reviewer_account, createdAt: r.created_at, updatedAt: r.updated_at || undefined })),
+    reviews: reviews.map((r) => ({ id: r.id, rating: r.rating, reason: r.reason, reviewerAccount: r.reviewer_account, reviewerDisplay: r.reviewer_display || '', reviewerAvatar: r.reviewer_avatar || '', createdAt: r.created_at, updatedAt: r.updated_at || undefined })),
     reports: reports.map((r) => ({ id: r.id, reviewId: r.review_id, reportedBy: r.reported_by, status: r.status, createdAt: r.created_at, resolvedAt: r.resolved_at || undefined }))
   };
 }
@@ -89,16 +110,16 @@ async function saveProfile(env, slug, profile, previousSlug = null) {
     await env.DB.prepare('DELETE FROM profiles WHERE slug = ?').bind(previousSlug).run();
   }
 
-  await env.DB.prepare('INSERT OR REPLACE INTO profiles (slug, owner, owner_bio, created_at) VALUES (?, ?, ?, ?)')
-    .bind(slug, profile.owner, profile.ownerBio || '', createdAt)
+  await env.DB.prepare('INSERT OR REPLACE INTO profiles (slug, owner, owner_display, owner_avatar, owner_bio, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(slug, profile.owner, profile.ownerDisplay || '', profile.ownerAvatar || '', profile.ownerBio || '', createdAt)
     .run();
 
   await env.DB.prepare('DELETE FROM reviews WHERE profile_slug = ?').bind(fromSlug).run();
   await env.DB.prepare('DELETE FROM reports WHERE profile_slug = ?').bind(fromSlug).run();
 
   for (const r of profile.reviews || []) {
-    await env.DB.prepare('INSERT INTO reviews (id, profile_slug, rating, reason, reviewer_account, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .bind(r.id, slug, r.rating, r.reason, r.reviewerAccount, r.createdAt, r.updatedAt || null)
+    await env.DB.prepare('INSERT INTO reviews (id, profile_slug, rating, reason, reviewer_account, reviewer_display, reviewer_avatar, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .bind(r.id, slug, r.rating, r.reason, r.reviewerAccount, r.reviewerDisplay || '', r.reviewerAvatar || '', r.createdAt, r.updatedAt || null)
       .run();
   }
 
@@ -123,6 +144,8 @@ async function requireSession(request, env) {
 function sanitizeProfile(profile) {
   return {
     owner: profile.owner,
+    ownerDisplay: profile.ownerDisplay || '',
+    ownerAvatar: profile.ownerAvatar || '',
     ownerBio: profile.ownerBio,
     createdAt: profile.createdAt,
     reviews: profile.reviews,
@@ -170,7 +193,8 @@ async function handleCallback(request, env) {
   const me = await meResp.json();
   const account = `dc_${me.id}`;
   const display = `${me.username}${me.discriminator && me.discriminator !== '0' ? `#${me.discriminator}` : ''}`;
-  const session = await serializeSession(env.SESSION_SECRET, { account, display, provider: 'discord', discordId: me.id });
+  const avatarUrl = me.avatar ? `https://cdn.discordapp.com/avatars/${me.id}/${me.avatar}.png?size=128` : '';
+  const session = await serializeSession(env.SESSION_SECRET, { account, display, avatarUrl, provider: 'discord', discordId: me.id });
 
   const headers = new Headers({ Location: `${getBaseUrl(request, env)}/` });
   headers.append('Set-Cookie', setCookie('legitcheck_session', session, 2592000));
@@ -201,7 +225,7 @@ async function handleApi(request, env, pathname, url) {
     if (ownedSlug) return json({ error: 'already_has_profile', slug: ownedSlug }, { status: 409 });
     if (await getProfile(env, slug)) return json({ error: 'slug_taken' }, { status: 409 });
 
-    const profile = { owner: user.account, ownerBio: '', createdAt: new Date().toISOString(), reviews: [], reports: [] };
+    const profile = { owner: user.account, ownerDisplay: user.display || '', ownerAvatar: user.avatarUrl || '', ownerBio: '', createdAt: new Date().toISOString(), reviews: [], reports: [] };
     await saveProfile(env, slug, profile);
     return json({ slug, profile: sanitizeProfile(profile) });
   }
@@ -212,9 +236,11 @@ async function handleApi(request, env, pathname, url) {
     const slug = slugify((await bodyJson(request)).user);
     if (!isValidSlug(slug)) return json({ error: 'invalid_slug' }, { status: 400 });
     const profile =
-      (await getProfile(env, slug)) || { owner: null, ownerBio: '', createdAt: new Date().toISOString(), reviews: [], reports: [] };
+      (await getProfile(env, slug)) || { owner: null, ownerDisplay: '', ownerAvatar: '', ownerBio: '', createdAt: new Date().toISOString(), reviews: [], reports: [] };
     if (profile.owner && profile.owner !== user.account) return json({ error: 'already_owned' }, { status: 409 });
     profile.owner = user.account;
+    profile.ownerDisplay = user.display || profile.ownerDisplay || "";
+    profile.ownerAvatar = user.avatarUrl || profile.ownerAvatar || "";
     await saveProfile(env, slug, profile);
     return json({ ok: true, profile: sanitizeProfile(profile) });
   }
@@ -247,16 +273,18 @@ async function handleApi(request, env, pathname, url) {
     const reason = String(body.reason || '').trim().slice(0, 140);
     if (!isValidSlug(slug) || !['legit', 'sold', 'scam'].includes(rating) || !reason) return json({ error: 'invalid_input' }, { status: 400 });
 
-    const profile = (await getProfile(env, slug)) || { owner: null, ownerBio: '', createdAt: new Date().toISOString(), reviews: [], reports: [] };
+    const profile = (await getProfile(env, slug)) || { owner: null, ownerDisplay: '', ownerAvatar: '', ownerBio: '', createdAt: new Date().toISOString(), reviews: [], reports: [] };
     if (profile.owner === user.account) return json({ error: 'self_review_blocked' }, { status: 409 });
 
     const existing = profile.reviews.find((r) => r.reviewerAccount === user.account);
     if (existing) {
       existing.rating = rating;
       existing.reason = reason;
+      existing.reviewerDisplay = user.display || existing.reviewerDisplay || '';
+      existing.reviewerAvatar = user.avatarUrl || existing.reviewerAvatar || '';
       existing.updatedAt = new Date().toISOString();
     } else {
-      profile.reviews.push({ id: `rvw_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`, rating, reason, reviewerAccount: user.account, createdAt: new Date().toISOString() });
+      profile.reviews.push({ id: `rvw_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`, rating, reason, reviewerAccount: user.account, reviewerDisplay: user.display || '', reviewerAvatar: user.avatarUrl || '', createdAt: new Date().toISOString() });
     }
     await saveProfile(env, slug, profile);
     return json({ ok: true, profile: sanitizeProfile(profile) });
@@ -270,7 +298,7 @@ async function handleApi(request, env, pathname, url) {
     const reviewId = String(body.reviewId || '');
     if (!isValidSlug(slug) || !reviewId) return json({ error: 'invalid_input' }, { status: 400 });
 
-    const profile = (await getProfile(env, slug)) || { owner: null, ownerBio: '', createdAt: new Date().toISOString(), reviews: [], reports: [] };
+    const profile = (await getProfile(env, slug)) || { owner: null, ownerDisplay: '', ownerAvatar: '', ownerBio: '', createdAt: new Date().toISOString(), reviews: [], reports: [] };
     const already = profile.reports.find((r) => r.reviewId === reviewId && r.reportedBy === user.account && r.status === 'open');
     if (!already) {
       profile.reports.push({ id: `rep_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`, reviewId, reportedBy: user.account, status: 'open', createdAt: new Date().toISOString() });

@@ -56,6 +56,16 @@ const reasonCatalog = {
   scam: ['Brak wysyłki po płatności', 'Towar niezgodny z opisem', 'Brak kontaktu po transakcji', 'Podejrzenie oszustwa']
 };
 
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function slugify(text) {
   return String(text || '')
     .trim()
@@ -255,7 +265,9 @@ function renderOwnerPanel(profile) {
   const account = getSessionAccount();
   const isOwner = account && profile.owner === account;
 
-  ownerBadge.textContent = profile.owner ? `Właściciel: @${profile.owner}` : 'Właściciel: nieustawiony';
+  ownerBadge.innerHTML = profile.owner
+    ? `${profile.ownerAvatar ? `<img class="owner-avatar" src="${escapeHtml(profile.ownerAvatar)}" alt="avatar" />` : ''}<span>Właściciel: @${escapeHtml(profile.owner)}${profile.ownerDisplay ? ` (${escapeHtml(profile.ownerDisplay)})` : ''}</span>`
+    : 'Właściciel: nieustawiony';
   ownerBioDisplay.textContent = profile.ownerBio ? `Opis: ${profile.ownerBio}` : '';
 
   if (!account) {
@@ -326,7 +338,7 @@ function renderReviews(profile, user) {
             <span>${date}</span>
           </div>
           <p>${review.reason}</p>
-          <small class="review-author">Opinia od: @${review.reviewerAccount}</small>
+          <small class="review-author">${review.reviewerAvatar ? `<img class="review-avatar" src="${escapeHtml(review.reviewerAvatar)}" alt="avatar" />` : ''}<span>Opinia od: @${escapeHtml(review.reviewerAccount)}${review.reviewerDisplay ? ` (${escapeHtml(review.reviewerDisplay)})` : ''}</span></small>
           ${canReport ? `<button class="btn btn-report" data-report-review="${review.id}" data-report-user="${user}">Zgłoś opinię</button>` : ''}
         </li>`;
     })

@@ -190,7 +190,8 @@ input:focus, select:focus { outline: none; border-color: rgba(116, 154, 255, 0.8
 .profile-header { display: flex; justify-content: space-between; align-items: center; gap: .8rem; }
 .profile-header-actions { display: flex; align-items: center; gap: .55rem; }
 .tag { color: var(--muted); font-size: 0.85rem; }
-.owner-badge { margin-top: .4rem; color: #a9c1ff; font-size: .9rem; }
+.owner-badge { margin-top: .4rem; color: #a9c1ff; font-size: .9rem; display: inline-flex; align-items: center; gap: .45rem; }
+.owner-avatar { width: 24px; height: 24px; border-radius: 999px; border: 1px solid rgba(255,255,255,.25); object-fit: cover; }
 .trust-pill { padding: 0.45rem 0.7rem; border-radius: 999px; font-size: 0.86rem; font-weight: 600; background: rgba(255, 255, 255, 0.13); }
 
 .stats-grid { display: grid; grid-template-columns: repeat(3, minmax(120px, 1fr)); gap: 0.75rem; }
@@ -218,7 +219,8 @@ input:focus, select:focus { outline: none; border-color: rgba(116, 154, 255, 0.8
 .reviews { list-style: none; padding: 0; margin: 0.75rem 0 0; display: grid; gap: 0.62rem; }
 .review { border: 1px solid var(--border); border-radius: 12px; padding: 0.72rem; background: rgba(255, 255, 255, 0.04); }
 .review-head { display: flex; justify-content: space-between; color: var(--muted); font-size: 0.88rem; margin-bottom: 0.35rem; }
-.review-author { color: #9fb2ff; display: inline-block; margin-top: 0.45rem; }
+.review-author { color: #9fb2ff; display: inline-flex; align-items: center; gap: .4rem; margin-top: 0.45rem; }
+.review-avatar { width: 20px; height: 20px; border-radius: 999px; border: 1px solid rgba(255,255,255,.22); object-fit: cover; }
 
 .empty-state { border-style: dashed; }
 .hidden { display: none; }
