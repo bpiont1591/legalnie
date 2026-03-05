@@ -73,6 +73,20 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+
+function getFallbackDiscordAvatar(account) {
+  const rawId = String(account || '').replace(/^dc_/, '');
+  if (!/^\d+$/.test(rawId)) return 'https://cdn.discordapp.com/embed/avatars/0.png';
+  const index = Number((BigInt(rawId) >> 22n) % 6n);
+  return `https://cdn.discordapp.com/embed/avatars/${index}.png`;
+}
+
+function getSafeAvatarUrl(url, account) {
+  const normalized = String(url || '').trim();
+  if (normalized.startsWith('https://cdn.discordapp.com/')) return normalized;
+  return getFallbackDiscordAvatar(account);
+}
+
 function slugify(text) {
   return String(text || '')
     .trim()
@@ -312,7 +326,7 @@ function renderOwnerPanel(profile) {
   const ownerLabel = formatAccountWithDisplay(profile.owner, ownerDisplay);
 
   ownerBadge.innerHTML = profile.owner
-    ? `${profile.ownerAvatar ? `<img class="owner-avatar" src="${escapeHtml(profile.ownerAvatar)}" alt="avatar" />` : ''}<span>Właściciel: ${ownerLabel}</span>`
+    ? `${profile.owner ? `<img class="owner-avatar" src="${escapeHtml(getSafeAvatarUrl(profile.ownerAvatar, profile.owner))}" alt="avatar" loading="lazy" referrerpolicy="no-referrer" />` : ''}<span>Właściciel: ${ownerLabel}</span>`
     : 'Właściciel: nieustawiony';
   ownerBioDisplay.textContent = profile.ownerBio ? `Opis: ${profile.ownerBio}` : '';
 
@@ -384,7 +398,7 @@ function renderReviews(profile, user) {
             <span>${date}</span>
           </div>
           <p>${escapeHtml(review.reason)}</p>
-          <small class="review-author">${review.reviewerAvatar ? `<img class="review-avatar" src="${escapeHtml(review.reviewerAvatar)}" alt="avatar" />` : ''}<span>Opinia od: @${escapeHtml(review.reviewerAccount)}${review.reviewerDisplay ? ` (${escapeHtml(review.reviewerDisplay)})` : ''}</span></small>
+          <small class="review-author">${review.reviewerAccount ? `<img class="review-avatar" src="${escapeHtml(getSafeAvatarUrl(review.reviewerAvatar, review.reviewerAccount))}" alt="avatar" loading="lazy" referrerpolicy="no-referrer" />` : ''}<span>Opinia od: @${escapeHtml(review.reviewerAccount)}${review.reviewerDisplay ? ` (${escapeHtml(review.reviewerDisplay)})` : ''}</span></small>
           ${canReport ? `<button class="btn btn-report" data-report-review="${review.id}" data-report-user="${user}">Zgłoś opinię</button>` : ''}
         </li>`;
     })

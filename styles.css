@@ -33,8 +33,8 @@ body {
 .topbar { display: flex; justify-content: space-between; gap: 1rem; align-items: center; padding: 2rem 0 1rem; }
 .topbar-actions { display: flex; gap: .6rem; }
 .brand { display: flex; align-items: center; gap: 0.9rem; }
-.logo-mark { width: 56px; height: 56px; border-radius: 16px; box-shadow: 0 14px 34px rgba(95, 138, 255, 0.45); }
-.logo-mark svg { display: block; width: 100%; height: 100%; }
+.logo-mark { width: 58px; height: 58px; border-radius: 16px; box-shadow: 0 16px 36px rgba(95, 138, 255, 0.46); transform: translateZ(0); }
+.logo-mark svg { display: block; width: 100%; height: 100%; filter: drop-shadow(0 4px 12px rgba(26, 212, 255, .28)); }
 h1, h2, h3, p { margin: 0; }
 .brand p { color: var(--muted); margin-top: 0.15rem; }
 

@@ -182,6 +182,24 @@ function redirectWithError(res, req, code) {
   res.end();
 }
 
+
+function discordDefaultAvatarUrl(discordId, discriminator) {
+  const id = String(discordId || '0');
+  const disc = String(discriminator || '0');
+  const index = disc !== '0'
+    ? Number.parseInt(disc, 10) % 5
+    : Number((BigInt(id || '0') >> 22n) % 6n);
+  return `https://cdn.discordapp.com/embed/avatars/${Number.isFinite(index) ? index : 0}.png`;
+}
+
+function resolveDiscordAvatarUrl(me) {
+  if (me?.avatar) {
+    const ext = String(me.avatar).startsWith('a_') ? 'gif' : 'png';
+    return `https://cdn.discordapp.com/avatars/${me.id}/${me.avatar}.${ext}?size=128`;
+  }
+  return discordDefaultAvatarUrl(me?.id, me?.discriminator);
+}
+
 function isDiscordConfigured() {
   return Boolean(DISCORD_CLIENT_ID && DISCORD_CLIENT_SECRET && SESSION_SECRET && SESSION_SECRET !== 'change-me-please');
 }
@@ -290,7 +308,7 @@ async function handleDiscordCallback(req, res, url) {
   const me = await meResp.json();
   const account = `dc_${me.id}`;
   const display = `${me.username}${me.discriminator && me.discriminator !== '0' ? `#${me.discriminator}` : ''}`;
-  const avatarUrl = me.avatar ? `https://cdn.discordapp.com/avatars/${me.id}/${me.avatar}.png?size=128` : '';
+  const avatarUrl = resolveDiscordAvatarUrl(me);
   const session = serializeSession({ account, display, avatarUrl, provider: 'discord', discordId: me.id });
 
   res.writeHead(302, {
