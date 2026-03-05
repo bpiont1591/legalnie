@@ -96,17 +96,17 @@
             <p id="createProfileLockMessage" class="feedback warning"></p>
             <button id="panelDiscordLoginBtn" class="btn btn-discord discord-cta panel-login-btn" type="button">Zaloguj przez Discord</button>
 
-            <h3 id="createProfileTitle" class="hidden">Utwórz swój profil</h3>
+            <h3 id="createProfileTitle" class="hidden">Skonfiguruj swój profil</h3>
             <form id="createProfileForm" class="stack hidden">
-              <label for="username">Nazwa profilu</label>
+              <label for="username">Nazwa Twojego profilu</label>
               <input
                 id="username"
                 name="username"
-                placeholder="np. twoj_sklep"
+                placeholder="np. premium_store"
                 pattern="[a-zA-Z0-9_-]{3,30}"
                 required
               />
-              <button type="submit" id="createProfileBtn" class="btn btn-primary">Utwórz profil</button>
+              <button type="submit" id="createProfileBtn" class="btn btn-primary">Utwórz profil publiczny</button>
             </form>
             <p id="createProfileMessage" class="feedback"></p>
           </section>
@@ -193,8 +193,8 @@
           </section>
 
           <section id="emptyState" class="card panel empty-state hidden">
-            <h2>Nie masz jeszcze aktywnego profilu</h2>
-            <p class="muted">Utwórz swój link po lewej stronie albo otwórz istniejący profil przez <code>?user=nazwa</code>.</p>
+            <h2>Wybierz profil do podglądu</h2>
+            <p class="muted">Zaloguj się i utwórz własny profil albo otwórz istniejący przez adres <code>/u/nazwa</code>.</p>
           </section>
         </div>
       </section>

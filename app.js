@@ -279,7 +279,7 @@ function renderCreateProfileAccess() {
     return;
   }
 
-  createProfileLockMessage.textContent = 'Nie masz jeszcze profilu — możesz go teraz utworzyć.';
+  createProfileLockMessage.textContent = 'Świetnie, jesteś zalogowany — teraz możesz utworzyć swój profil.';
 }
 
 function renderAuthUi() {
@@ -592,7 +592,7 @@ if (deleteProfileBtn) {
 
     ownedProfileSlug = null;
     setCurrentUser('');
-    createProfileMessage.textContent = 'Profil został usunięty. Możesz utworzyć nowy.';
+    createProfileMessage.textContent = 'Profil został usunięty. Możesz od razu utworzyć nowy profil.';
     await syncAndRender();
     renderAuthUi();
   });
