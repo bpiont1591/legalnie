@@ -43,6 +43,7 @@ const adminReportsList = document.querySelector('#adminReportsList');
 const adminStatsGrid = document.querySelector('#adminStatsGrid');
 
 const copyProfileLink = document.querySelector('#copyProfileLink');
+const showMyProfileBtn = document.querySelector('#showMyProfileBtn');
 const yearNode = document.querySelector('#year');
 
 let currentProfile = null;
@@ -223,6 +224,14 @@ async function ensureLoggedInProfile() {
   if (!getSessionAccount()) return;
   if (getCurrentUser()) return;
   if (ownedProfileSlug) setCurrentUser(ownedProfileSlug);
+}
+
+function routeToOwnedProfileIfNeeded() {
+  if (!getSessionAccount()) return false;
+  if (!ownedProfileSlug) return false;
+  if (getCurrentUser()) return false;
+  setCurrentUser(ownedProfileSlug);
+  return true;
 }
 
 function renderReasonOptions(rating) {
@@ -467,6 +476,7 @@ function renderProfile() {
     profileSection.classList.add('hidden');
     emptyState.classList.add('hidden');
     copyProfileLink.disabled = true;
+    if (showMyProfileBtn) showMyProfileBtn.classList.add('hidden');
     return;
   }
 
@@ -474,6 +484,7 @@ function renderProfile() {
     profileSection.classList.add('hidden');
     emptyState.classList.remove('hidden');
     copyProfileLink.disabled = true;
+    if (showMyProfileBtn) showMyProfileBtn.classList.add('hidden');
     return;
   }
 
@@ -490,13 +501,20 @@ function renderProfile() {
   renderReports(currentProfile);
   renderAdminPanel();
 
+  if (showMyProfileBtn) {
+    const currentUser = getCurrentUser();
+    const canShowMyProfile = Boolean(getSessionAccount() && ownedProfileSlug && currentUser && currentUser !== ownedProfileSlug);
+    showMyProfileBtn.classList.toggle('hidden', !canShowMyProfile);
+  }
+
   profileSection.classList.remove('hidden');
   emptyState.classList.add('hidden');
   copyProfileLink.disabled = false;
 }
 
 async function syncAndRender() {
-  await refreshCurrentProfile();
+  if (routeToOwnedProfileIfNeeded()) await refreshCurrentProfile();
+  else await refreshCurrentProfile();
   await refreshAdminReports();
   await refreshAdminOverview();
   renderProfile();
@@ -728,6 +746,14 @@ copyProfileLink.addEventListener('click', async () => {
   }
 });
 
+if (showMyProfileBtn) {
+  showMyProfileBtn.addEventListener('click', async () => {
+    if (!ownedProfileSlug) return;
+    setCurrentUser(ownedProfileSlug);
+    await syncAndRender();
+  });
+}
+
 if (yearNode) yearNode.textContent = new Date().getFullYear();
 
 async function boot() {
@@ -736,7 +762,8 @@ async function boot() {
     await refreshSession();
     await refreshOwnedProfileSlug();
     await ensureLoggedInProfile();
-    await refreshCurrentProfile();
+    if (routeToOwnedProfileIfNeeded()) await refreshCurrentProfile();
+    else await refreshCurrentProfile();
     await refreshAdminReports();
     await refreshAdminOverview();
     renderReasonOptions(null);
