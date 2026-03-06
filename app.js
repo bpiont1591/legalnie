@@ -221,6 +221,8 @@ async function refreshOwnedProfileSlug() {
 
 async function ensureLoggedInProfile() {
   if (!getSessionAccount()) return;
+  if (getCurrentUser()) return;
+  if (ownedProfileSlug) setCurrentUser(ownedProfileSlug);
 }
 
 function renderReasonOptions(rating) {
