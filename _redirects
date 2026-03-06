@@ -1,0 +1,3 @@
+/auth/* /auth/:splat 200
+/api/* /api/:splat 200
+/u/* /index.html 200
